@@ -1,27 +1,32 @@
 import concore
 import numpy as np
+import ast
 
-# pm function
 def pm(u):
-  return u + 0.01
+    return u + 0.01
 
-# main
 concore.default_maxtime(150)
 concore.delay = 0.02
 
-# initial values-- transforms to string including the simtime as the 0th entry in the list
 init_simtime_u = "[0.0, 0.0]"
 init_simtime_ym = "[0.0, 0.0]"
 
-ym = np.array([concore.initval(init_simtime_ym)]).T
-while(concore.simtime<concore.maxtime):
-    while concore.unchanged():
-        u = concore.read(1,"u",init_simtime_u)
-    u = np.array([u]).T
-    #####
-    ym = pm(u)
-    #####
-    print(str(concore.simtime) + ". u="+str(u) + "ym="+str(ym))
-    concore.write(1,"ym",list(ym.T[0]),delta=1)
+ym = np.array([concore.initval(init_simtime_ym)], dtype=np.float64).T
 
-print("retry="+str(concore.retrycount))
+while concore.simtime < concore.maxtime:
+    while concore.unchanged():
+        u_raw = concore.read(1, "u", init_simtime_u)
+        if isinstance(u_raw, str):
+            try:
+                u_raw = ast.literal_eval(u_raw)
+            except:
+                print("Failed to parse fallback u string:", u_raw)
+                u_raw = [0.0]
+        u = np.array([u_raw], dtype=np.float64).T
+
+    ym = pm(u)
+
+    print(f"{concore.simtime}. u={u} ym={ym}")
+    concore.write(1, "ym", list(ym.T[0]), delta=1)
+
+print("retry=" + str(concore.retrycount))
