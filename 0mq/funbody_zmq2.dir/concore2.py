@@ -54,7 +54,6 @@ def init_zmq_port(port_name, port_type, address, socket_type_str):
     except Exception as e:
         print(f"An unexpected error occurred during ZMQ port initialization for {port_name}: {e}")
 
-# --- ZeroMQ Integration End ---
 
 def safe_literal_eval(filename, defaultValue):
     try:
