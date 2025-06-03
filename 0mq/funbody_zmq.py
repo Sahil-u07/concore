@@ -8,7 +8,7 @@ print("funbody using 0mq")
 
 context = zmq.Context()
 socket = context.socket(zmq.REP)
-socket.bind("tcp://*:2346")
+socket.bind("tcp://*:2356")
 
 concore.delay = 0.07
 concore2.delay = 0.07

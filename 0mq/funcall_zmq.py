@@ -8,7 +8,7 @@ print("funcall using 0mq")
 
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
-socket.connect("tcp://localhost:2346")
+socket.connect("tcp://localhost:2356")
 
 concore.delay = 0.07
 concore2.delay = 0.07
