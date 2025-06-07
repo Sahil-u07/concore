@@ -3,6 +3,7 @@ import sys
 import os
 import subprocess
 import logging
+import json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,50 +11,62 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-def run_copy_script(template_script_path_arg, new_port_name_arg, new_zmq_port_arg, output_directory_arg, python_exe):
-    base_template_name = os.path.basename(template_script_path_arg)
+def run_specialization_script(template_script_path, output_dir, edge_params_list, python_exe, copy_script_path):
+    """
+    Calls the copy script to generate a specialized version of a node's script.
+    Returns the basename of the generated script on success, None on failure.
+    """
+    # The new copy script generates a standardized filename, e.g., "original.py"
+    base_template_name = os.path.basename(template_script_path)
     template_root, template_ext = os.path.splitext(base_template_name)
     output_filename = f"{template_root}{template_ext}"
-    expected_output_path = os.path.join(output_directory_arg, output_filename)
+    expected_output_path = os.path.join(output_dir, output_filename)
 
+    # If the specialized file already exists, we don't need to regenerate it.
     if os.path.exists(expected_output_path):
-        logging.info(f"Specialized script '{expected_output_path}' already exists. Skipping generation.")
+        logging.info(f"Specialized script '{expected_output_path}' already exists. Using existing.")
         return output_filename
-    
-    copy_script_path = os.path.join(".","copy_with_port_portname.py")
+
+    # Convert the list of parameters to a JSON string for command line argument
+    edge_params_json_str = json.dumps(edge_params_list)
 
     cmd = [
         python_exe,
         copy_script_path,
-        new_port_name_arg,
-        new_zmq_port_arg,
-        template_script_path_arg,
-        output_directory_arg
+        template_script_path,
+        output_dir,
+        edge_params_json_str # Pass the JSON string as the last argument
     ]
-    logging.info(f"Running: {' '.join(cmd)}")
+    logging.info(f"Running specialization for '{base_template_name}': {' '.join(cmd)}")
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, encoding='utf-8')
-        logging.info(f"Successfully generated '{output_filename}' using copy_with_port_portname.py.")
-        if result.stdout: logging.debug(f"copy_with_port_portname.py stdout:\n{result.stdout}")
-        if result.stderr: logging.warning(f"copy_with_port_portname.py stderr:\n{result.stderr}")
+        logging.info(f"Successfully generated specialized script '{output_filename}'.")
+        if result.stdout: logging.debug(f"copy_with_port_portname.py stdout:\n{result.stdout.strip()}")
+        if result.stderr: logging.warning(f"copy_with_port_portname.py stderr:\n{result.stderr.strip()}")
         return output_filename
     except subprocess.CalledProcessError as e:
-        logging.error(f"Error calling copy_with_port_portname.py for '{template_script_path_arg}' with port_name '{new_port_name_arg}':")
+        logging.error(f"Error calling specialization script for '{template_script_path}':")
         logging.error(f"Command: {' '.join(e.cmd)}")
         logging.error(f"Return code: {e.returncode}")
-        logging.error(f"Stdout: {e.stdout}")
-        logging.error(f"Stderr: {e.stderr}")
-        return None
-    except FileNotFoundError:
-        logging.error(f"Error: Python executable or copy_with_port_portname.py script not found.")
-        logging.error(f"Attempted command: {' '.join(cmd)}")
+        logging.error(f"Stdout: {e.stdout.strip()}")
+        logging.error(f"Stderr: {e.stderr.strip()}")
         return None
     except Exception as e:
-        logging.error(f"An unexpected error occurred while trying to run copy_script: {e}")
+        logging.error(f"An unexpected error occurred while trying to run specialization script: {e}")
         return None
 
 
-def create_modified_script(template_script_path, zmq_port_name_val, zmq_port_val, output_dir):
+def create_modified_script(template_script_path, output_dir, edge_params_json_str):
+    """
+    Creates a modified Python script by injecting ZMQ port and port name
+    definitions from a JSON object.
+
+    Args:
+        template_script_path (str): The path to the source template script.
+        output_dir (str): The directory to save the new script in.
+        edge_params_json_str (str): A JSON string representing a list of
+                                     edge parameter dictionaries.
+    """
     try:
         with open(template_script_path, 'r') as f:
             lines = f.readlines()
@@ -64,28 +77,60 @@ def create_modified_script(template_script_path, zmq_port_name_val, zmq_port_val
         print(f"Error reading template script '{template_script_path}': {e}")
         sys.exit(1)
 
-    definitions = [
-        '\n',
-        f'ZMQ_PORT_NAME = "{zmq_port_name_val}"\n',
-        f'ZMQ_PORT = "{zmq_port_val}"\n',
-        '\n'
-    ]
+    try:
+        edge_params_list = json.loads(edge_params_json_str)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON string provided for edge parameters: {e}")
+        print(f"Received: {edge_params_json_str}")
+        sys.exit(1)
 
+    # --- Generate definitions from the list of edge parameters ---
+    definitions = ['\n# --- ZMQ Port and Name Definitions (Auto-generated by mkconcore.py) ---\n']
+    print(f"Generating definitions for {len(edge_params_list)} edge(s):")
+
+    for params in edge_params_list:
+        port = params.get("port")
+        port_name = params.get("port_name")
+        source_label = params.get("source_node_label", "UNKNOWN_SOURCE")
+        target_label = params.get("target_node_label", "UNKNOWN_TARGET")
+
+        # Sanitize labels to be valid Python variable parts
+        safe_source = "".join(c if c.isalnum() else '_' for c in source_label)
+        safe_target = "".join(c if c.isalnum() else '_' for c in target_label)
+
+        # Create unique variable names
+        port_var_name = f"PORT_{safe_source}_{safe_target}"
+        port_name_var_name = f"PORT_NAME_{safe_source}_{safe_target}"
+        
+        definitions.append(f'{port_name_var_name} = "{port_name}"\n')
+        definitions.append(f'{port_var_name} = "{port}"\n')
+        
+        print(f"  - {port_name_var_name} = \"{port_name}\"")
+        print(f"  - {port_var_name} = \"{port}\"")
+
+    definitions.append('# --- End of Auto-generated Definitions ---\n\n')
+
+    # --- Insert definitions into the script ---
     insert_index = 0
     for i, line in enumerate(lines):
         stripped_line = line.strip()
+        # Find the last import statement to insert after
         if stripped_line.startswith('import ') or stripped_line.startswith('from '):
             insert_index = i + 1
+        # Stop searching after the first non-import, non-comment line after imports are found
         elif insert_index > 0 and stripped_line and not stripped_line.startswith('#'):
             break
+    # Handle case where script starts with shebang
     if insert_index == 0 and lines and lines[0].startswith('#!'):
         insert_index = 1
 
     modified_lines = lines[:insert_index] + definitions + lines[insert_index:]
 
-    # Determine output filename
+    # --- Determine and create output file ---
     base_template_name = os.path.basename(template_script_path)
     template_root, template_ext = os.path.splitext(base_template_name)
+    
+    # Standardized output filename for a node with one or more specializations
     output_filename = f"{template_root}{template_ext}"
     output_script_path = os.path.join(output_dir, output_filename)
 
@@ -97,23 +142,21 @@ def create_modified_script(template_script_path, zmq_port_name_val, zmq_port_val
         with open(output_script_path, 'w') as f:
             f.writelines(modified_lines)
         
-        print(f"Successfully created '{output_script_path}' with:")
-        print(f"  ZMQ_PORT_NAME = \"{zmq_port_name_val}\"")
-        print(f"  ZMQ_PORT = \"{zmq_port_val}\"")
+        print(f"Successfully created specialized script: '{output_script_path}'")
 
     except Exception as e:
         print(f"Error writing output script '{output_script_path}': {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("Usage: python3 copy_with_port_portname.py <New_ZMQ_PORT_NAME> <New_ZMQ_PORT> <TEMPLATE_SCRIPT_PATH> <OUTPUT_DIRECTORY>")
-        print("Example: python3 copy_with_port_portname.py FUNBODY_REP_1 \"2355\" \"./templates/funbody_base.py\" \"./generated_scripts/\"")
+    if len(sys.argv) != 4:
+        print("\nUsage: python3 copy_with_port_portname.py <TEMPLATE_SCRIPT_PATH> <OUTPUT_DIRECTORY> '<JSON_PARAMETERS>'\n")
+        print("Example JSON: '[{\"port\": \"2355\", \"port_name\": \"FUNBODY_REP_1\", \"source_node_label\": \"nodeA\", \"target_node_label\": \"nodeB\"}]'")
+        print("Note: The JSON string must be enclosed in single quotes in shell.\n")
         sys.exit(1)
 
-    new_port_name_arg = sys.argv[1]
-    new_bind_address_arg = sys.argv[2]
-    template_script_path_arg = sys.argv[3]
-    output_directory_arg = sys.argv[4]
+    template_script_path_arg = sys.argv[1]
+    output_directory_arg = sys.argv[2]
+    json_params_arg = sys.argv[3]
 
-    create_modified_script(template_script_path_arg, new_port_name_arg, new_bind_address_arg, output_directory_arg)
+    create_modified_script(template_script_path_arg, output_directory_arg, json_params_arg)
