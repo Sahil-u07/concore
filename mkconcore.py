@@ -5,6 +5,8 @@ import sys
 import os
 import shutil
 import stat
+import copy_with_port_portname
+import numpy as np
 
 MKCONCORE_VER = "22-09-18"
 
@@ -122,65 +124,164 @@ edges_text = soup.find_all('edge')
 nodes_text = soup.find_all('node')
 
 # Store the edges and nodes in a dictionary
+edge_label_regex = re.compile(r"0x([a-fA-F0-9]+)_(\S+)")
 edges_dict = dict()
 nodes_dict = dict()
+node_id_to_label_map = dict() # Helper to get clean node labels from GraphML ID
 
 for node in nodes_text:
-    node_key = node.get_text()
-    length = len(node.find_all('data'))
-    for i in range(length):
-        try:
-            data = node.find_all('data')[i]
-            node_label = prefixedgenode + data.find('y:NodeLabel').text #3/23/21
-            nodes_dict[node['id']] = re.sub(r'(\s+|\n)', ' ', node_label)
-        except IndexError:
-            logging.debug('IndexError: A node with no valid properties encountered and ignored')
-        except AttributeError:
-            logging.debug('AttributeError: A node with no valid properties encountered and ignored')
+    try:
+        data = node.find('data', recursive=False)
+        if data:
+            node_label_tag = data.find('y:NodeLabel')
+            if node_label_tag:
+                node_label = prefixedgenode + node_label_tag.text
+                nodes_dict[node['id']] = re.sub(r'(\s+|\n)', ' ', node_label)
+                node_id_to_label_map[node['id']] = node_label.split(':')[0]
+    except (IndexError, AttributeError):
+        logging.debug('A node with no valid properties encountered and ignored')
 
 for edge in edges_text:
-    length = len(edge.find_all('data'))
-    for i in range(length):
-        try:
-            data = edge.find_all('data')[i]
-            edge_label = prefixedgenode + data.find('y:EdgeLabel').text # 3/23/21
-            if edges_dict.get(edge_label) != None:
-                targets = edges_dict[edge_label][1]
-            else:
-                targets = []
-            targets.append(nodes_dict[edge['target']])
-            edges_dict[edge_label] = [nodes_dict[edge['source']], targets]
-        except IndexError:
-            logging.debug('An edge with no valid properties encountered and ignored')
-        except AttributeError:
-            logging.debug('AttributeError: An edge with no valid properties encountered and ignored')
+    try:
+        data = edge.find('data', recursive=False)
+        if data:
+            edge_label_tag = data.find('y:EdgeLabel')
+            if edge_label_tag:
+                raw_label = edge_label_tag.text
+                edge_label = prefixedgenode + raw_label
+                # Filter out ZMQ edges from the file-based edge dictionary by checking the raw label
+                if not edge_label_regex.match(raw_label):
+                    if edge_label not in edges_dict:
+                        edges_dict[edge_label] = [nodes_dict[edge['source']], []]
+                    edges_dict[edge_label][1].append(nodes_dict[edge['target']])
+    except (IndexError, AttributeError, KeyError):
+        logging.debug('An edge with no valid properties or missing node encountered and ignored')
 
-# Print the edges_dict    
-#logging.info(edges_dict)
 
 ############## Mark's Docker
-import numpy as np
+logging.info("Building graph adjacency matrix...")
+nodes_num = {label: i for i, label in enumerate(nodes_dict.values())}
 
-i=0
-nodes_num=dict()
-for node in nodes_dict:
-  nodes_num[nodes_dict[node]] = i
-  i=i+1
-
-m=np.zeros((len(nodes_dict),len(nodes_dict)))
+m = np.zeros((len(nodes_dict), len(nodes_dict)))
 for edges in edges_dict:
-   for dest in (edges_dict[edges])[1]:
-      m[nodes_num[edges_dict[edges][0]]][nodes_num[dest]] = 1
+   source_node_label = edges_dict[edges][0]
+   for dest_node_label in edges_dict[edges][1]:
+      try:
+          source_idx = nodes_num[source_node_label]
+          dest_idx = nodes_num[dest_node_label]
+          m[source_idx][dest_idx] = 1
+      except KeyError as e:
+          logging.error(f"KeyError while building matrix. Label '{e}' not found in node map.")
+          continue
 
 mp = np.eye(len(nodes_dict))
 ms = np.zeros((len(nodes_dict),len(nodes_dict)))
-
-for i in range(0,len(nodes_dict)):
+for i in range(len(nodes_dict)):
   mp = mp@m
   ms += mp
-
 if (ms == 0).any():
   logging.warning("Unreachable nodes detected")
+
+# --- START: New logic for script specialization (Aggregation) ---
+python_executable = sys.executable
+mkconcore_dir = os.path.dirname(os.path.abspath(__file__))
+copy_script_py_path = os.path.join(mkconcore_dir, "copy_with_port_portname.py")
+if not os.path.exists(copy_script_py_path):
+    copy_script_py_path = os.path.join(CONCOREPATH, "copy_with_port_portname.py")
+
+if not os.path.exists(copy_script_py_path):
+    logging.warning(f"copy_with_port_portname.py not found. Script specialization will be skipped.")
+    copy_script_py_path = None
+
+# Dictionary to aggregate edge parameters for each node that needs specialization
+# Key: node_id (from GraphML), Value: list of edge parameter dicts
+node_edge_params = {}
+edge_label_regex = re.compile(r"0x([^_]+)_(\S+)")
+
+logging.info("Aggregating ZMQ edge parameters for nodes...")
+if copy_script_py_path:
+    for edge_element in soup.find_all('edge'):
+        try:
+            edge_label_tag = edge_element.find('y:EdgeLabel')
+            if not edge_label_tag or not edge_label_tag.text:
+                continue
+            
+            raw_edge_label = edge_label_tag.text
+            match = edge_label_regex.match(raw_edge_label)
+
+            if match:
+                hex_port_val, port_name_val = match.groups()
+                # Convert hex port value to decimal string
+                try:
+                    decimal_port_str = str(int(hex_port_val, 16))
+                except ValueError:
+                    logging.error(f"Invalid hex value '{hex_port_val}' in edge label. Using as is.")
+                    decimal_port_str = hex_port_val
+
+                source_node_id = edge_element['source']
+                target_node_id = edge_element['target']
+
+                # Get clean labels for use in variable names
+                source_node_label = node_id_to_label_map.get(source_node_id, "UNKNOWN_SOURCE")
+                target_node_label = node_id_to_label_map.get(target_node_id, "UNKNOWN_TARGET")
+
+                logging.info(f"Found ZMQ edge '{raw_edge_label}' from '{source_node_label}' to '{target_node_label}'")
+
+                edge_param_data = {
+                    "port": decimal_port_str,
+                    "port_name": port_name_val,
+                    "source_node_label": source_node_label,
+                    "target_node_label": target_node_label
+                }
+
+                # Add this edge's data to both the source and target nodes for specialization
+                if source_node_id in nodes_dict:
+                    if source_node_id not in node_edge_params:
+                        node_edge_params[source_node_id] = []
+                    node_edge_params[source_node_id].append(edge_param_data)
+
+                if target_node_id in nodes_dict:
+                    if target_node_id not in node_edge_params:
+                        node_edge_params[target_node_id] = []
+                    node_edge_params[target_node_id].append(edge_param_data)
+        except Exception as e:
+            logging.warning(f"Error processing edge for parameter aggregation: {e}")
+
+# --- Now, run the specialization for each node that has aggregated parameters ---
+if node_edge_params:
+    logging.info("Running script specialization process...")
+    specialized_scripts_output_dir = os.path.abspath(os.path.join(outdir, "src"))
+    os.makedirs(specialized_scripts_output_dir, exist_ok=True)
+
+    for node_id, params_list in node_edge_params.items():
+        current_node_full_label = nodes_dict[node_id]
+        try:
+            container_name, original_script = current_node_full_label.split(':', 1)
+        except ValueError:
+            continue # Skip if label format is wrong
+
+        if not original_script or "." not in original_script:
+            continue # Skip if not a script file
+
+        template_script_full_path = os.path.join(sourcedir, original_script)
+        if not os.path.exists(template_script_full_path):
+            logging.error(f"Cannot specialize: Original script '{template_script_full_path}' not found in '{sourcedir}'.")
+            continue
+
+        new_script_basename = copy_with_port_portname.run_specialization_script(
+            template_script_full_path,
+            specialized_scripts_output_dir,
+            params_list,
+            python_executable,
+            copy_script_py_path
+        )
+
+        if new_script_basename:
+            # Update nodes_dict to point to the new comprehensive specialized script
+            nodes_dict[node_id] = f"{container_name}:{new_script_basename}"
+            logging.info(f"Node ID '{node_id}' ('{container_name}') updated to use specialized script '{new_script_basename}'.")
+        else:
+            logging.error(f"Failed to generate specialized script for node ID '{node_id}'. It will retain its original script.")
 
 #not right for PM2_1_1 and PM2_1_2
 volswr = len(nodes_dict)*['']
@@ -202,31 +303,46 @@ for edges in edges_dict:
      volsro[nodes_num[dest]] += ' -v '+volIndirPair+':ro'
      i += 1
 
-#copy sourcedir into ./src
-for node in nodes_dict:
-    containername,sourcecode = nodes_dict[node].split(':')
-    if len(sourcecode)!=0 and sourcecode.find(".")!=-1: #3/28/21
-        dockername,langext = sourcecode.split(".")
-        try:
-            fsource = open(sourcedir+"/"+sourcecode)
-        except:
-            logging.error(f"{sourcecode} not found in {sourcedir}")
-            quit()
-        with open(outdir+"/src/"+sourcecode,"w") as fcopy:
-            fcopy.write(fsource.read())
-        fsource.close()
-        if concoretype == "docker": # 3/30/21
-            try:
-                fsource = open(sourcedir+"/Dockerfile."+dockername)
-                with open(outdir+"/src/Dockerfile."+dockername,"w") as fcopy:
-                    fcopy.write(fsource.read())
-                logging.info(f"Using custom Dockerfile for {dockername}")
-            except:
-                logging.info(f"Using default Dockerfile for {dockername}")
-            fsource.close()
-        if os.path.isdir(sourcedir+"/"+dockername+".dir"):
-            shutil.copytree(sourcedir+"/"+dockername+".dir",outdir+"/src/"+dockername+".dir")
+# copy sourcedir into ./src
+# --- Modified file copying loop ---
+logging.info("Processing files for nodes...")
+for node_id_key in list(nodes_dict.keys()):
+    node_label_from_dict = nodes_dict[node_id_key]
+    try:
+        containername, sourcecode = node_label_from_dict.split(':', 1)
+    except ValueError:
+        continue
+
+    if not sourcecode:
+        continue
+
+    if "." in sourcecode:
+        dockername, langext = os.path.splitext(sourcecode)
+    else:
+        dockername, langext = sourcecode, ""
     
+    script_target_path = os.path.join(outdir, "src", sourcecode)
+
+    # If the script was specialized, it's already in outdir/src. If not, copy from sourcedir.
+    if node_id_key not in node_edge_params:
+        script_source_path = os.path.join(sourcedir, sourcecode)
+        if os.path.exists(script_source_path):
+            shutil.copy2(script_source_path, script_target_path)
+        else:
+            logging.error(f"Script '{sourcecode}' not found in sourcedir '{sourcedir}'")
+
+    # The rest of the file handling (Dockerfiles, .dir) uses 'dockername',
+    # which is now derived from the specialized script name, maintaining consistency.
+    if concoretype == "docker":
+        custom_dockerfile = f"Dockerfile.{dockername}"
+        if os.path.exists(os.path.join(sourcedir, custom_dockerfile)):
+            shutil.copy2(os.path.join(sourcedir, custom_dockerfile), os.path.join(outdir, "src", custom_dockerfile))
+    
+    dir_for_node = f"{dockername}.dir"
+    if os.path.isdir(os.path.join(sourcedir, dir_for_node)):
+        shutil.copytree(os.path.join(sourcedir, dir_for_node), os.path.join(outdir, "src", dir_for_node), dirs_exist_ok=True)
+
+
 #copy proper concore.py into /src
 try:
     if concoretype=="docker":
@@ -346,48 +462,63 @@ with open(outdir+"/src/import_concore.m","w") as fcopy:
     fcopy.write(fsource.read())
 fsource.close()
 
+# --- Generate iport and oport mappings ---
+logging.info("Generating iport/oport mappings...")
+node_port_mappings = {label: {'iport': {}, 'oport': {}} for label in nodes_dict.values()}
+# 1. Process file-based inputs
+node_labels_by_index = {i: label for label, i in nodes_num.items()}
+for i, in_dirs in enumerate(indir):
+    if i in node_labels_by_index:
+        node_label = node_labels_by_index[i]
+        for pair in in_dirs:
+            volname, portnum = pair.split(INDIRNAME)
+            node_port_mappings[node_label]['iport'][volname] = int(portnum)
+# 2. Process file-based outputs
+for edge_label, (source_label, target_labels) in edges_dict.items():
+    if source_label in node_port_mappings:
+        out_count = len(node_port_mappings[source_label]['oport']) + 1
+        node_port_mappings[source_label]['oport'][edge_label] = out_count
+# 3. Augment with bidirectional ZMQ connections
+logging.info("Augmenting port maps with ZMQ connections...")
+for edge_element in soup.find_all('edge'):
+    try:
+        edge_label_tag = edge_element.find('y:EdgeLabel')
+        if not edge_label_tag or not edge_label_tag.text: continue
+        match = edge_label_regex.match(edge_label_tag.text)
+        if match:
+            hex_port_val, port_name_val = match.groups()
+            # Convert hex port value to decimal string
+            try:
+                decimal_port_str = str(int(hex_port_val, 16))
+            except ValueError:
+                logging.error(f"Invalid hex value '{hex_port_val}' in edge label. Using as is.")
+                decimal_port_str = hex_port_val
 
-#generate input portmap file
-i=0
-for node in nodes_dict:
-    containername,sourcecode = nodes_dict[node].split(':')
-    iportmap_dict = dict()
-    for pair in indir[i]:
-        volname,portnum = pair.split(INDIRNAME)
-        iportmap_dict[volname] = int(portnum) 
-    if len(sourcecode)!=0 and sourcecode.find(".")!=-1: #3/28/21
-        dockername,langext = sourcecode.split(".")
-        if os.path.exists(outdir+"/src/"+dockername+".iport"):
-            logging.warning(f"{dockername} has multiple instantiations ; iport/oport may be invalid")
-        with open(outdir+"/src/"+dockername+".iport", "w") as fport:
-          if prefixedgenode == "": # 5/18/21
-            fport.write(str(iportmap_dict)) 
-          else:
-            fport.write(str(iportmap_dict).replace("'"+prefixedgenode,"'")) 
-    i=i+1
+            source_label = nodes_dict.get(edge_element['source'])
+            target_label = nodes_dict.get(edge_element['target'])
+            if source_label and target_label:
+                node_port_mappings[source_label]['iport'][port_name_val] = decimal_port_str
+                node_port_mappings[source_label]['oport'][port_name_val] = decimal_port_str
+                node_port_mappings[target_label]['iport'][port_name_val] = decimal_port_str
+                node_port_mappings[target_label]['oport'][port_name_val] = decimal_port_str
+                logging.info(f"  - Added ZMQ port '{port_name_val}:{decimal_port_str}' to both iport/oport for nodes '{source_label}' and '{target_label}'")
+    except Exception as e:
+        logging.warning(f"Error processing ZMQ edge for port map: {e}")
 
-#generate output portmap file
-outcount = len(nodes_dict)*[0]
-#wrong, this aliases single dict for all elements: oportmap = len(nodes_dict)*[dict()]
-#instead, need to use a loop to initialize:
-oportmap_dict = []
-for node in nodes_dict:
-    oportmap_dict += [dict()]
-for edges in edges_dict:
-    containername,sourcecode = edges_dict[edges][0].split(':')
-    outcount[nodes_num[edges_dict[edges][0]]] += 1
-    oportmap_dict[nodes_num[edges_dict[edges][0]]][edges] = outcount[nodes_num[edges_dict[edges][0]]]
-i=0
-for node in nodes_dict:
-    containername,sourcecode = nodes_dict[node].split(':')
-    if len(sourcecode)!=0 and sourcecode.find(".")!=-1: #3/28/21
-        dockername,langext = sourcecode.split(".")
-        with open(outdir+"/src/"+dockername+".oport", "w") as fport:
-          if prefixedgenode == "": # 5/18/21
-            fport.write(str(oportmap_dict[i])) 
-          else:
-            fport.write(str(oportmap_dict[i]).replace("'"+prefixedgenode,"'")) 
-    i=i+1
+# 4. Write final iport/oport files
+logging.info("Writing .iport and .oport files...")
+for node_label, ports in node_port_mappings.items():
+    try:
+        containername, sourcecode = node_label.split(':', 1)
+        if not sourcecode or "." not in sourcecode: continue
+        dockername = os.path.splitext(sourcecode)[0]
+        with open(os.path.join(outdir, "src", f"{dockername}.iport"), "w") as fport:
+            fport.write(str(ports['iport']).replace("'" + prefixedgenode, "'"))
+        with open(os.path.join(outdir, "src", f"{dockername}.oport"), "w") as fport:
+            fport.write(str(ports['oport']).replace("'" + prefixedgenode, "'"))
+    except ValueError:
+        continue
+
 
 #if docker, make docker-dirs, generate build, run, stop, clear scripts and quit
 if (concoretype=="docker"):
