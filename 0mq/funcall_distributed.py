@@ -9,7 +9,7 @@ print("funcall using ZMQ via concore")
 concore.init_zmq_port(
     port_name = PORT_NAME_IN_F1,
     port_type="connect",
-    address="tcp://localhost:" + PORT_IN_F1,
+    address="tcp://192.168.0.107:" + PORT_IN_F1, # Put the IP address which will Reply
     socket_type_str="REQ" 
 )
 
