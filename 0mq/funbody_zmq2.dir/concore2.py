@@ -54,6 +54,14 @@ def init_zmq_port(port_name, port_type, address, socket_type_str):
     except Exception as e:
         print(f"An unexpected error occurred during ZMQ port initialization for {port_name}: {e}")
 
+def terminate_zmq():
+    for port in zmq_ports.values():
+        try:
+            port.socket.close()
+            port.context.term()
+        except Exception as e:
+            print(f"Error while terminating ZMQ port {port.address}: {e}")
+# --- ZeroMQ Integration End ---
 
 def safe_literal_eval(filename, defaultValue):
     try:
@@ -206,15 +214,16 @@ def write(port_identifier, name, val, delta=0):
             print(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             print(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
-        return 
-
+        return
     try:
-        file_port_num = int(port_identifier)
+        if isinstance(port_identifier, str) and port_identifier in zmq_ports:
+            file_path = os.path.join("../"+port_identifier, name)
+        else:
+            file_port_num = int(port_identifier)
+            file_path = os.path.join(outpath+str(file_port_num), name) 
     except ValueError:
         print(f"Error: Invalid port identifier '{port_identifier}' for file operation. Must be integer or ZMQ name.")
         return
-
-    file_path = os.path.join(outpath+str(file_port_num), name)
 
     if isinstance(val, str):
         time.sleep(2 * delay) 

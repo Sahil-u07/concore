@@ -9,9 +9,10 @@ print("funbody using ZMQ via concore")
 concore.init_zmq_port(
     port_name=PORT_NAME_F2_OUT,
     port_type="bind",
-    address= "tcp://*:" + PORT_F2_OUT,
+    address= "tcp://0.0.0.0:" + PORT_F2_OUT,
     socket_type_str="REP" 
 )
+
 
 # Standard concore initializations
 concore.delay = 0.07         

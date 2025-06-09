@@ -1,45 +1,66 @@
 # funbody2_zmq.py
-import zmq
-import time
+import time 
 import concore
 import concore2
 
-print("funbody using 0mq")
+print("funbody using ZMQ via concore")
 
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-socket.bind("tcp://*:2356")
+# Initialize ZMQ REP port using concore
+concore.init_zmq_port(
+    port_name=PORT_NAME_F2_F1,
+    port_type="bind",
+    address= "tcp://*:" + PORT_F2_F1,
+    socket_type_str="REP" 
+)
 
-concore.delay = 0.07
-concore2.delay = 0.07
+# Standard concore initializations
+concore.delay = 0.07         
+concore2.delay = 0.07        
 concore2.inpath = concore.inpath
 concore2.outpath = concore.outpath
-concore2.simtime = 0
-concore.default_maxtime(100)
-init_simtime_u = "[0.0, 0.0, 0.0]"
-init_simtime_ym = "[0.0, 0.0, 0.0]"
+concore2.simtime = 0         
+concore.default_maxtime(100) 
+init_simtime_u_str = "[0.0, 0.0, 0.0]"
+init_simtime_ym_str = "[0.0, 0.0, 0.0]"
 
-u = concore.initval(init_simtime_u)
-ym = concore2.initval(init_simtime_ym)
+u_data_values = concore.initval(init_simtime_u_str) 
+ym_data_values = concore2.initval(init_simtime_ym_str)
+
+print(f"Initial u_data_values: {u_data_values}, ym_data_values: {ym_data_values}")
+print(f"Max time: {concore.maxtime}")
 
 while concore2.simtime < concore.maxtime:
-    msg = socket.recv_json()
-    if msg["action"] == "fun":
-        u = msg["params"]["u"]
-        concore.simtime = u[0]
-        u = u[1:]
-        concore.write(concore.oport['U2'], "u", u)
-        print(u)
-        old2 = concore2.simtime
-        while concore2.unchanged() or concore2.simtime <= old2:
-            ym = concore2.read(concore.iport['Y2'], "ym", init_simtime_ym)
-        ym_full = [concore2.simtime] + ym
-        print(f"Replying with {ym_full}")
-        socket.send_json({"ym": ym_full})
-        print(f"funbody u={u} ym={ym} time={concore2.simtime}")
-    else:
-        print("undefined action: " + str(msg.get("action", "None")))
-        socket.send_json({"error": "undefined action"})
-        break
+    received_u_data = concore.read(PORT_NAME_F2_F1, "u_signal", init_simtime_u_str)
 
-print("retry=" + str(concore.retrycount))
+    if not (isinstance(received_u_data, list) and len(received_u_data) > 0):
+        print(f"Error or invalid data received via ZMQ: {received_u_data}. Skipping iteration.")
+        time.sleep(concore.delay) 
+        continue 
+
+    received_time = received_u_data[0]
+    if isinstance(received_time, (int, float)):
+        concore.simtime = received_time  
+        u_data_values = received_u_data[1:] 
+    else:
+        print(f"Warning: Received ZMQ data's first element is not time: {received_u_data}. Using data part as is.")
+        u_data_values = received_u_data[1:] if len(received_u_data) > 1 else []
+
+    # Assuming concore.oport['U2'] is a file port (e.g., to pmpymax.py)
+    if 'U2' in concore.oport: 
+        concore.write(concore.oport['U2'], "u", u_data_values)
+
+    old_concore2_simtime = concore2.simtime
+    while concore2.unchanged() or concore2.simtime <= old_concore2_simtime:
+        # Assuming concore.iport['Y2'] is a file port (e.g., from pmpymax.py)
+        ym_data_values = concore2.read(concore.iport['Y2'], "ym", init_simtime_ym_str)
+        # time.sleep(concore2.delay) # Optional delay
+
+    ym_full_to_send = [concore2.simtime] + ym_data_values
+    
+    concore.write(PORT_NAME_F2_F1, "ym_signal", ym_full_to_send)
+    
+    print(f"funbody u={u_data_values} ym={ym_data_values} time={concore2.simtime}")
+
+print("funbody retry=" + str(concore.retrycount))
+
+concore.terminate_zmq()
