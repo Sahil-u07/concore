@@ -214,7 +214,7 @@ def write(port_identifier, name, val, delta=0):
             print(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             print(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
-        return
+        
     try:
         if isinstance(port_identifier, str) and port_identifier in zmq_ports:
             file_path = os.path.join("../"+port_identifier, name)
