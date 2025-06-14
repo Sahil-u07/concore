@@ -20,12 +20,38 @@ class ZeroMQPort:
         self.socket = self.context.socket(zmq_socket_type)
         self.port_type = port_type  # "bind" or "connect"
         self.address = address
+
+        self.socket.setsockopt(zmq.RCVTIMEO, 2000)
+        self.socket.setsockopt(zmq.SNDTIMEO, 2000)
+        self.socket.setsockopt(zmq.LINGER, 0)
+
         if self.port_type == "bind":
             self.socket.bind(address)
             print(f"ZMQ Port bound to {address}")
         else:
             self.socket.connect(address)
             print(f"ZMQ Port connected to {address}")
+            
+    def send_json_with_retry(self, message):
+        for attempt in range(5):
+            try:
+                self.socket.send_json(message)
+                return
+            except zmq.Again:
+                print(f"Send timeout (attempt {attempt + 1}/5)")
+                time.sleep(0.5)
+        print("Failed to send after retries.")
+        return
+
+    def recv_json_with_retry(self):
+        for attempt in range(5):
+            try:
+                return self.socket.recv_json()
+            except zmq.Again:
+                print(f"Receive timeout (attempt {attempt + 1}/5)")
+                time.sleep(0.5)
+        print("Failed to receive after retries.")
+        return None
 
 # Global ZeroMQ ports registry
 zmq_ports = {}
@@ -143,7 +169,7 @@ def read(port_identifier, name, initstr_val):
     if isinstance(port_identifier, str) and port_identifier in zmq_ports:
         zmq_p = zmq_ports[port_identifier]
         try:
-            message = zmq_p.socket.recv_json()
+            message = zmq_p.recv_json_with_retry()
             return message
         except zmq.error.ZMQError as e:
             print(f"ZMQ read error on port {port_identifier} (name: {name}): {e}. Returning default.")
@@ -209,12 +235,12 @@ def write(port_identifier, name, val, delta=0):
     if isinstance(port_identifier, str) and port_identifier in zmq_ports:
         zmq_p = zmq_ports[port_identifier]
         try:
-            zmq_p.socket.send_json(val)
+            zmq_p.send_json_with_retry(val)
         except zmq.error.ZMQError as e:
             print(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             print(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
-        return
+        
     try:
         if isinstance(port_identifier, str) and port_identifier in zmq_ports:
             file_path = os.path.join("../"+port_identifier, name)
