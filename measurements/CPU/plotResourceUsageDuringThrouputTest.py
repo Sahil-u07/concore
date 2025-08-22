@@ -7,17 +7,11 @@ try:
     avg_cpu_sender_zmq = pd.read_csv('sender_usage.csv')['cpu_percent'].mean()
     avg_mem_sender_zmq = pd.read_csv('sender_usage.csv')['memory_mb'].mean()
     
-    # In a real test, you would also measure the receiver. For simplicity, we plot sender.
-    # avg_cpu_receiver_zmq = pd.read_csv('receiver_zmq_usage.csv')['cpu_percent'].mean()
-    # avg_mem_receiver_zmq = pd.read_csv('receiver_zmq_usage.csv')['memory_mb'].mean()
-
-    # Create placeholder data for Mediator until you run the test
     avg_cpu_sender_mediator = 25.5 # Example value
-    avg_mem_sender_mediator = 60.2   # Example value
+    avg_mem_sender_mediator = 60.2 # Example value
 
 except FileNotFoundError:
     print("One or more CSV files not found. Using placeholder data.")
-    # Placeholder data for plotting if you haven't run the experiment yet
     avg_cpu_sender_zmq, avg_mem_sender_zmq = 15.0, 45.0
     avg_cpu_sender_mediator, avg_mem_sender_mediator = 25.5, 60.2
 
@@ -30,13 +24,16 @@ data = {
 df_plot = pd.DataFrame(data)
 
 # Create the grouped bar chart
-plt.figure(figsize=(10, 7))
+plt.figure(figsize=(8.27, 11.69))  # A4 size in inches (210mm x 297mm)
 sns.barplot(x='Metric', y='Value', hue='Protocol', data=df_plot, palette={'Mediator': '#F44336', 'ZeroMQ': '#4CAF50'})
 
-plt.title('Figure 5: Resource Utilization During Throughput Test (Sender)', fontsize=16)
-plt.xlabel('Performance Metric', fontsize=12)
-plt.ylabel('Average Usage', fontsize=12)
-plt.legend(title='Protocol')
+plt.xlabel('Performance Metric', fontsize=14)
+plt.ylabel('Average Usage', fontsize=14)
+plt.legend(title='Protocol', fontsize=12, title_fontsize=12)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 
+plt.tight_layout()
+
+# Save to PDF
+plt.savefig("resource_utilization.pdf", format="pdf")
 plt.show()
