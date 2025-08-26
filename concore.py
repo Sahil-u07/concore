@@ -5,26 +5,35 @@ import sys
 import re
 import zmq # Added for ZeroMQ
 
-#if windows, create script to kill this process 
+# if windows, create script to kill this process 
 # because batch files don't provide easy way to know pid of last command
-# ignored for posix!=windows, because "concorepid" is handled by script
-# ignored for docker (linux!=windows), because handled by docker stop
+# ignored for posix != windows, because "concorepid" is handled by script
+# ignored for docker (linux != windows), because handled by docker stop
 if hasattr(sys, 'getwindowsversion'):
     with open("concorekill.bat","w") as fpid:
         fpid.write("taskkill /F /PID "+str(os.getpid())+"\n")
 
-# --- ZeroMQ Integration Start ---
+# ===================================================================
+# ZeroMQ Communication Wrapper
+# ===================================================================
 class ZeroMQPort:
     def __init__(self, port_type, address, zmq_socket_type):
+        """
+        port_type: "bind" or "connect"
+        address: ZeroMQ address (e.g., "tcp://*:5555")
+        zmq_socket_type: zmq.REQ, zmq.REP, zmq.PUB, zmq.SUB etc.
+        """
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq_socket_type)
         self.port_type = port_type  # "bind" or "connect"
         self.address = address
 
-        self.socket.setsockopt(zmq.RCVTIMEO, 2000)
-        self.socket.setsockopt(zmq.SNDTIMEO, 2000)
-        self.socket.setsockopt(zmq.LINGER, 0)
+        # Configure timeouts & immediate close on failure
+        self.socket.setsockopt(zmq.RCVTIMEO, 2000)   # 2 sec receive timeout
+        self.socket.setsockopt(zmq.SNDTIMEO, 2000)   # 2 sec send timeout
+        self.socket.setsockopt(zmq.LINGER, 0)        # Drop pending messages on close
 
+        # Bind or connect
         if self.port_type == "bind":
             self.socket.bind(address)
             print(f"ZMQ Port bound to {address}")
@@ -33,6 +42,7 @@ class ZeroMQPort:
             print(f"ZMQ Port connected to {address}")
             
     def send_json_with_retry(self, message):
+        """Send JSON message with retries if timeout occurs."""
         for attempt in range(5):
             try:
                 self.socket.send_json(message)
@@ -44,6 +54,7 @@ class ZeroMQPort:
         return
 
     def recv_json_with_retry(self):
+        """Receive JSON message with retries if timeout occurs."""
         for attempt in range(5):
             try:
                 return self.socket.recv_json()
@@ -89,6 +100,9 @@ def terminate_zmq():
             print(f"Error while terminating ZMQ port {port.address}: {e}")
 # --- ZeroMQ Integration End ---
 
+# ===================================================================
+# File & Parameter Handling
+# ===================================================================
 def safe_literal_eval(filename, defaultValue):
     try:
         with open(filename, "r") as file:
@@ -97,10 +111,13 @@ def safe_literal_eval(filename, defaultValue):
         # Keep print for debugging, but can be made quieter
         # print(f"Info: Error reading {filename} or file not found, using default: {e}")
         return defaultValue
-    
+
+
+# Load input/output ports if present
 iport = safe_literal_eval("concore.iport", {})
 oport = safe_literal_eval("concore.oport", {})
 
+# Global variables
 s = ''
 olds = ''
 delay = 1
@@ -110,14 +127,20 @@ outpath = "./out"
 simtime = 0
 
 #9/21/22
+# ===================================================================
+# Parameter Parsing
+# ===================================================================
 try:
     sparams_path = os.path.join(inpath + "1", "concore.params")
     if os.path.exists(sparams_path):
         with open(sparams_path, "r") as f:
             sparams = f.read()
         if sparams: # Ensure sparams is not empty
+            # Windows sometimes keeps quotes
             if sparams[0] == '"' and sparams[-1] == '"':  #windows keeps "" need to remove
                 sparams = sparams[1:-1]
+
+            # Convert key=value;key2=value2 to Python dict format
             if sparams != '{' and not (sparams.startswith('{') and sparams.endswith('}')): # Check if it needs conversion
                 print("converting sparams: "+sparams)
                 sparams = "{'"+re.sub(';',",'",re.sub('=',"':",re.sub(' ','',sparams)))+"}"
@@ -137,11 +160,16 @@ except Exception as e:
 
 #9/30/22
 def tryparam(n, i):
+    """Return parameter `n` from params dict, else default `i`."""
     return params.get(n, i)
 
 
 #9/12/21
+# ===================================================================
+# Simulation Time Handling
+# ===================================================================
 def default_maxtime(default):
+    """Read maximum simulation time from file or use default."""
     global maxtime
     maxtime_path = os.path.join(inpath + "1", "concore.maxtime")
     maxtime = safe_literal_eval(maxtime_path, default)
@@ -149,6 +177,7 @@ def default_maxtime(default):
 default_maxtime(100)
 
 def unchanged():
+    """Check if global string `s` is unchanged since last call."""
     global olds, s
     if olds == s:
         s = ''
@@ -156,16 +185,21 @@ def unchanged():
     olds = s
     return False
 
+# ===================================================================
+# I/O Handling (File + ZMQ)
+# ===================================================================
 def read(port_identifier, name, initstr_val):
     global s, simtime, retrycount
     
+    # Default return
     default_return_val = initstr_val
     if isinstance(initstr_val, str):
         try:
             default_return_val = literal_eval(initstr_val)
         except (SyntaxError, ValueError):
             pass
-
+    
+    # Case 1: ZMQ port
     if isinstance(port_identifier, str) and port_identifier in zmq_ports:
         zmq_p = zmq_ports[port_identifier]
         try:
@@ -178,6 +212,7 @@ def read(port_identifier, name, initstr_val):
             print(f"Unexpected error during ZMQ read on port {port_identifier} (name: {name}): {e}. Returning default.")
             return default_return_val
 
+    # Case 2: File-based port
     try:
         file_port_num = int(port_identifier)
     except ValueError:
@@ -197,6 +232,7 @@ def read(port_identifier, name, initstr_val):
         print(f"Error reading {file_path}: {e}. Using default value.")
         return default_return_val 
 
+    # Retry logic if file is empty
     attempts = 0
     max_retries = 5 
     while len(ins) == 0 and attempts < max_retries:
@@ -214,6 +250,8 @@ def read(port_identifier, name, initstr_val):
         return default_return_val
 
     s += ins 
+
+    # Try parsing
     try:
         inval = literal_eval(ins)
         if isinstance(inval, list) and len(inval) > 0: 
@@ -230,8 +268,13 @@ def read(port_identifier, name, initstr_val):
 
 
 def write(port_identifier, name, val, delta=0):
+    """
+    Write data either to ZMQ port or file.
+    `val` must be list (with simtime prefix) or string.
+    """
     global simtime
 
+    # Case 1: ZMQ port
     if isinstance(port_identifier, str) and port_identifier in zmq_ports:
         zmq_p = zmq_ports[port_identifier]
         try:
@@ -240,7 +283,8 @@ def write(port_identifier, name, val, delta=0):
             print(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             print(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
-        
+    
+    # Case 2: File-based port
     try:
         if isinstance(port_identifier, str) and port_identifier in zmq_ports:
             file_path = os.path.join("../"+port_identifier, name)
@@ -251,8 +295,9 @@ def write(port_identifier, name, val, delta=0):
         print(f"Error: Invalid port identifier '{port_identifier}' for file operation. Must be integer or ZMQ name.")
         return
 
+    # File writing rules
     if isinstance(val, str):
-        time.sleep(2 * delay) 
+        time.sleep(2 * delay) # string writes wait longer
     elif not isinstance(val, list):
         print(f"File write to {file_path} must have list or str value, got {type(val)}")
         return
@@ -269,6 +314,10 @@ def write(port_identifier, name, val, delta=0):
         print(f"Error writing to {file_path}: {e}")
 
 def initval(simtime_val_str): 
+    """
+    Initialize simtime from string containing a list.
+    Example: "[10, 'foo', 'bar']" → simtime=10, returns ['foo','bar']
+    """
     global simtime
     try:
         val = literal_eval(simtime_val_str)
