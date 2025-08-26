@@ -2,7 +2,7 @@
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd" xmlns:y="http://www.yworks.com/xml/graphml">
   <key for="node" id="d6" yfiles.type="nodegraphics"/>
   <key for="edge" id="d10" yfiles.type="edgegraphics"/>
-  <graph edgedefault="directed" id="1749320269800" projectName="test4fun">
+  <graph edgedefault="directed" id="1751708529373" projectName="test4fun">
     <node id="d95f7887-42bf-4e12-a022-021869701c6a">
       <data key="d6">
         <y:ShapeNode>
@@ -17,10 +17,10 @@
     <node id="f56f8b24-41a6-45b4-882b-6596040b6af0">
       <data key="d6">
         <y:ShapeNode>
-          <y:Geometry height="50" width="159" x="-487" y="50.77362282623311"/>
+          <y:Geometry height="50" width="193" x="-487" y="50.77362282623311"/>
           <y:Fill color="#ffcc00" opacity="1"/>
           <y:BorderStyle color="#000" width="1"/>
-          <y:NodeLabel>F1:funcall_zmq2.py</y:NodeLabel>
+          <y:NodeLabel>F1:funcall_distributed.py</y:NodeLabel>
           <y:Shape type="rectangle"/>
         </y:ShapeNode>
       </data>
@@ -43,7 +43,7 @@
           <y:Arrows source="none" target="delta"/>
           <y:EdgeLabel>Y</y:EdgeLabel>
           <y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0">
-            <y:Point x="-339.982911387144" y="158.9042676840334"/>
+            <y:Point x="-415.46853638105335" y="162.77362256719772"/>
           </y:Path>
         </y:GenericEdge>
       </data>
@@ -55,7 +55,7 @@
           <y:Arrows source="none" target="delta"/>
           <y:EdgeLabel>U</y:EdgeLabel>
           <y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0">
-            <y:Point x="-362.8880972826907" y="85.13856537277874"/>
+            <y:Point x="-362.8880998957256" y="85.15016959004211"/>
           </y:Path>
         </y:GenericEdge>
       </data>
@@ -65,9 +65,9 @@
         <y:GenericEdge configuration="com.yworks.bpmn.Connection">
           <y:LineStyle width="1" type="solid"/>
           <y:Arrows source="none" target="delta"/>
-          <y:EdgeLabel>0x2405_U3</y:EdgeLabel>
+          <y:EdgeLabel>0x2400_U3</y:EdgeLabel>
           <y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0">
-            <y:Point x="-550.1625227854407" y="-33.613188373974694"/>
+            <y:Point x="-550.1667051105128" y="-33.61318802232212"/>
           </y:Path>
         </y:GenericEdge>
       </data>
@@ -587,6 +587,54 @@
         <parameters>WyIwMjg4Nzc2NS1lNTA5LTQ3MjgtYWE1ZC1hZTBiYmJhMjkxMzQiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwNV9VMyIsdHJ1ZV0=</parameters>
       </equivalent>
       <hash>d42101a2e57f7e1fc75f9b867262a6a8</hash>
+    </actionHistory>
+    <actionHistory>
+      <tid>1751707047236</tid>
+      <inverse>
+        <actionName>UPDATE_NODE</actionName>
+        <parameters>WyJmNTZmOGIyNC00MWE2LTQ1YjQtODgyYi02NTk2MDQwYjZhZjAiLHsid2lkdGgiOjE1OSwiaGVpZ2h0Ijo1MCwib3BhY2l0eSI6MSwic2hhcGUiOiJyZWN0YW5nbGUiLCJiYWNrZ3JvdW5kQ29sb3IiOiIjZmZjYzAwIiwiYm9yZGVyQ29sb3IiOiIjMDAwIiwiYm9yZGVyV2lkdGgiOjF9LCJGMTpmdW5jYWxsX3ptcTIucHkiLHRydWVd</parameters>
+      </inverse>
+      <equivalent>
+        <actionName>UPDATE_NODE</actionName>
+        <parameters>WyJmNTZmOGIyNC00MWE2LTQ1YjQtODgyYi02NTk2MDQwYjZhZjAiLHsid2lkdGgiOjE5MywiaGVpZ2h0Ijo1MCwib3BhY2l0eSI6MSwic2hhcGUiOiJyZWN0YW5nbGUiLCJiYWNrZ3JvdW5kQ29sb3IiOiIjZmZjYzAwIiwiYm9yZGVyQ29sb3IiOiIjMDAwIiwiYm9yZGVyV2lkdGgiOjF9LCJGMTpmdW5jYWxsX2Rpc3RyaWJ1dGVkLnB5Iix0cnVlXQ==</parameters>
+      </equivalent>
+      <hash>ad7e56eb4e9610939329b1542aa0e868</hash>
+    </actionHistory>
+    <actionHistory>
+      <tid>1751708835442</tid>
+      <inverse>
+        <actionName>UPDATE_EDGE</actionName>
+        <parameters>WyIxMWYyMGJhOC1lYWU5LTQ3YjktYTA0OC05NjBmODRlYWJhOWEiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwNV9VMyIsdHJ1ZV0=</parameters>
+      </inverse>
+      <equivalent>
+        <actionName>UPDATE_EDGE</actionName>
+        <parameters>WyIxMWYyMGJhOC1lYWU5LTQ3YjktYTA0OC05NjBmODRlYWJhOWEiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwM19VMyIsdHJ1ZV0=</parameters>
+      </equivalent>
+      <hash>16b71f5be7fb830dc4cb9ceea3f11ff0</hash>
+    </actionHistory>
+    <actionHistory>
+      <tid>1751709251435</tid>
+      <inverse>
+        <actionName>UPDATE_EDGE</actionName>
+        <parameters>WyIxMWYyMGJhOC1lYWU5LTQ3YjktYTA0OC05NjBmODRlYWJhOWEiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwM19VMyIsdHJ1ZV0=</parameters>
+      </inverse>
+      <equivalent>
+        <actionName>UPDATE_EDGE</actionName>
+        <parameters>WyIxMWYyMGJhOC1lYWU5LTQ3YjktYTA0OC05NjBmODRlYWJhOWEiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwMV9VMyIsdHJ1ZV0=</parameters>
+      </equivalent>
+      <hash>8957f77c22449c1f4caabb7ca68ead37</hash>
+    </actionHistory>
+    <actionHistory>
+      <tid>1751709403095</tid>
+      <inverse>
+        <actionName>UPDATE_EDGE</actionName>
+        <parameters>WyIxMWYyMGJhOC1lYWU5LTQ3YjktYTA0OC05NjBmODRlYWJhOWEiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwMV9VMyIsdHJ1ZV0=</parameters>
+      </inverse>
+      <equivalent>
+        <actionName>UPDATE_EDGE</actionName>
+        <parameters>WyIxMWYyMGJhOC1lYWU5LTQ3YjktYTA0OC05NjBmODRlYWJhOWEiLHsidGhpY2tuZXNzIjoxLCJzaGFwZSI6InNvbGlkIn0sIjB4MjQwMF9VMyIsdHJ1ZV0=</parameters>
+      </equivalent>
+      <hash>e85d0bc31c27cb6e02aeacdb333eaa29</hash>
     </actionHistory>
   </graph>
 </graphml>
