@@ -15,7 +15,6 @@ bars = plt.bar(protocols, values, color=colors)
 
 # Add plot details
 plt.ylabel('Throughput (Messages/Second)', fontsize=14)
-plt.title('Figure 6: Maximum Throughput Comparison', fontsize=18, pad=25)
 plt.xticks(fontsize=12)
 plt.yscale('log')  # log scale for large differences
 plt.grid(axis='y', linestyle='--', alpha=0.7)

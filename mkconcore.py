@@ -1,3 +1,67 @@
+# The script handles different environments: Docker, POSIX (macOS/Ubuntu), and Windows.
+# It reads the graph nodes (representing computational tasks) and edges (representing data flow).
+# Based on this information, it generates a directory structure and a set of helper scripts
+# (build, run, stop, clear, maxtime, params, unlock) to manage the workflow.
+# It also includes logic to handle "script specialization" for ZMQ-based communication,
+# where it modifies source files to include specific port and port-name information.
+
+# The script does the following:
+# 1.  Initial Setup and Argument Parsing:
+#     - Defines global constants for tool names (g++, iverilog, python3, matlab, etc.) and paths.
+#     - Parses command-line arguments for the GraphML file, source directory, output directory, and execution type (posix, windows, docker).
+#     - Checks for the existence of input/output directories and creates the output structure.
+#     - Logs the configuration details.
+
+# 2.  Graph Parsing and Adjacency Matrix Creation:
+#     - Uses BeautifulSoup to parse the input GraphML file.
+#     - Identifies nodes and edges, storing them in dictionaries.
+#     - Creates a simple adjacency matrix (m) and a reachability matrix (ms) from the graph,
+#       detecting any unreachable nodes and logging a warning.
+
+# 3.  Script Specialization (Aggregation and Execution):
+#     - This is a key part of the logic that handles ZMQ connections.
+#     - It iterates through the edges, specifically looking for ones with labels in the format "0x<hex_port>_<port_name>".
+#     - It aggregates these port parameters for each node.
+#     - It then uses an external script `copy_with_port_portname.py` to "specialize" the original source files. This means it creates
+#       new versions of the scripts, injecting the ZMQ port information directly into the code.
+#     - The `nodes_dict` is then updated to point to these newly created, specialized scripts.
+
+# 4.  Port Mapping and File Generation:
+#     - Generates `.iport` (input port) and `.oport` (output port) mapping files for each node.
+#     - These files are simple dictionaries that map volume names (for file-based communication) or port names (for ZMQ)
+#       to their corresponding port numbers or indices. This allows the individual scripts to know how to connect to their
+#       peers in the graph.
+
+# 5.  File Copying and Script Generation:
+#     - Copies all necessary source files (`.py`, `.cpp`, `.m`, etc.) from the source directory to the `outdir/src` directory.
+#     - Handles cases where specialized scripts were created, ensuring the new files are copied instead of the originals.
+#     - Copies a set of standard `concore` files (`.py`, `.hpp`, `.v`, `.m`, `mkcompile`) into the `src` directory.
+
+# 6.  Environment-Specific Scripting (Main Logic Branches):
+#     - This is the largest and most complex part, where the script's behavior diverges based on the `concoretype`.
+
+#     a. Docker:
+#         - Generates `Dockerfile`s for each node's container. If a custom Dockerfile exists in the source directory, it's used.
+#           Otherwise, it generates a default one based on the file extension (`.py`, `.cpp`, etc.).
+#         - Creates `build.bat` (Windows) or `build` (POSIX) scripts to build the Docker images for each node.
+#         - Creates `run.bat`/`run` scripts to launch the containers, setting up the necessary shared volumes (`-v`) for data transfer.
+#         - Creates `stop.bat`/`stop` and `clear.bat`/`clear` scripts to manage the containers and clean up the volumes.
+#         - Creates helper scripts like `maxtime.bat`/`maxtime`, `params.bat`/`params`, and `unlock.bat`/`unlock` to
+#           pass runtime parameters or API keys to the containers.
+
+#     b. POSIX (Linux/macOS) and Windows:
+#         - These branches handle direct execution on the host machine without containers.
+#         - Creates a separate directory for each node inside the output directory.
+#         - Uses the `build` script to copy source files and create symbolic links (`ln -s` on POSIX, `mklink` on Windows)
+#           between the node directories and the shared data directories (representing graph edges).
+#         - Generates `run` and `debug` scripts to execute the programs. It uses platform-specific commands
+#           like `start /B` for Windows and `xterm -e` or `osascript` for macOS to run the processes.
+#         - The `stop` and `clear` scripts use `kill` or `del` commands to manage the running processes and files.
+#         - Generates `maxtime`, `params`, and `unlock` scripts that directly write files to the shared directories.
+
+# 7.  Permissions:
+#     - Sets the executable permission (`stat.S_IRWXU`) for the generated scripts on POSIX systems.
+
 from bs4 import BeautifulSoup
 import logging
 import re
@@ -17,13 +81,13 @@ CPPWIN    = "g++"        #Windows C++  6/22/21
 CPPEXE    = "g++"        #Ubuntu/macOS C++  6/22/21
 VWIN      = "iverilog"   #Windows verilog  6/25/21
 VEXE      = "iverilog"   #Ubuntu/macOS verilog  6/25/21
-PYTHONEXE = "python3"    #Ubuntu/macOS python 3
-PYTHONWIN = "python"         #Windows python 3
+PYTHONEXE = "python3"    #Ubuntu/macOS python3
+PYTHONWIN = "python"     #Windows python3
 MATLABEXE = "matlab"     #Ubuntu/macOS matlab 
 MATLABWIN = "matlab"     #Windows matlab 
-OCTAVEEXE = "octave"     #Ubuntu/macOS octave 
-OCTAVEWIN = "octave"     #Windows octave 
-M_IS_OCTAVE = False       #treat .m as octave
+OCTAVEEXE = "octave"     #Ubuntu/macOS octave
+OCTAVEWIN = "octave"     #Windows octave
+M_IS_OCTAVE = False      #treat .m as octave
 MCRPATH  = "~/MATLAB/R2021a" #path to local Ubunta Matlab Compiler Runtime
 DOCKEREXE = "sudo docker"#assume simple docker install
 DOCKEREPO = "markgarnold"#where pulls come from 3/28/21
