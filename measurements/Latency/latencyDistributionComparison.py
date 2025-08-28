@@ -22,7 +22,7 @@ def generate_comparison_plot():
     df_combined = pd.concat([df_zmq, df_mediator], ignore_index=True)
 
     print("Generating plot...")
-    plt.figure(figsize=(8.27, 11.69))  # A4 size in inches
+    plt.figure(figsize=(10, 7), dpi=100)  # Changed to 1000x700 pixels equivalent
 
     sns.violinplot(
         x='Protocol', 
@@ -31,14 +31,14 @@ def generate_comparison_plot():
         palette={'ZeroMQ': '#4CAF50', 'Mediator': '#F44336'}
     )
 
-    plt.xlabel('Communication Protocol', fontsize=14)
-    plt.ylabel('Round-Trip Latency (ms)', fontsize=14)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.xlabel('Communication Protocol', fontsize=18)
+    plt.ylabel('Round-Trip Latency (ms)', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.grid(True, which='major', linestyle='--', linewidth=0.5, color='grey')
 
     plt.tight_layout()
-    plt.savefig('latency_comparison.pdf', format='pdf')
+    plt.savefig('latency_comparison.pdf', format='pdf', dpi=100)
     print("Plot saved as 'latency_comparison.pdf'")
 
     plt.show()

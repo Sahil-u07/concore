@@ -24,16 +24,17 @@ data = {
 df_plot = pd.DataFrame(data)
 
 # Create the grouped bar chart
-plt.figure(figsize=(8.27, 11.69))  # A4 size in inches (210mm x 297mm)
+plt.figure(figsize=(10, 7), dpi=100)  # Changed to 1000x700 pixels equivalent
 sns.barplot(x='Metric', y='Value', hue='Protocol', data=df_plot, palette={'Mediator': '#F44336', 'ZeroMQ': '#4CAF50'})
 
-plt.xlabel('Performance Metric', fontsize=14)
-plt.ylabel('Average Usage', fontsize=14)
-plt.legend(title='Protocol', fontsize=12, title_fontsize=12)
+plt.xlabel('Performance Metric', fontsize=18)
+plt.ylabel('Average Usage', fontsize=18)
+plt.xticks(fontsize=16)
+plt.legend(title='Protocol', fontsize=16, title_fontsize=16)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 
 plt.tight_layout()
 
 # Save to PDF
-plt.savefig("resource_utilization.pdf", format="pdf")
+plt.savefig("resource_utilization.pdf", format="pdf", dpi=100)
 plt.show()
