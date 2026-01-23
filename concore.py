@@ -125,13 +125,15 @@ retrycount = 0
 inpath = "./in" #must be rel path for local
 outpath = "./out"
 simtime = 0
+concore_params_file = os.path.join(inpath, "1", "concore.params")
+concore_maxtime_file = os.path.join(inpath, "1", "concore.maxtime")
 
 #9/21/22
 # ===================================================================
 # Parameter Parsing
 # ===================================================================
 try:
-    sparams_path = os.path.join(inpath + "1", "concore.params")
+    sparams_path = concore_params_file
     if os.path.exists(sparams_path):
         with open(sparams_path, "r") as f:
             sparams = f.read()
@@ -171,8 +173,7 @@ def tryparam(n, i):
 def default_maxtime(default):
     """Read maximum simulation time from file or use default."""
     global maxtime
-    maxtime_path = os.path.join(inpath + "1", "concore.maxtime")
-    maxtime = safe_literal_eval(maxtime_path, default)
+    maxtime = safe_literal_eval(concore_maxtime_file, default)
 
 default_maxtime(100)
 
@@ -220,7 +221,7 @@ def read(port_identifier, name, initstr_val):
         return default_return_val
 
     time.sleep(delay) 
-    file_path = os.path.join(inpath+str(file_port_num), name)
+    file_path = os.path.join(inpath, str(file_port_num), name)
     ins = ""
 
     try:
@@ -283,14 +284,12 @@ def write(port_identifier, name, val, delta=0):
             print(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             print(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
+        return
     
     # Case 2: File-based port
     try:
-        if isinstance(port_identifier, str) and port_identifier in zmq_ports:
-            file_path = os.path.join("../"+port_identifier, name)
-        else:
-            file_port_num = int(port_identifier)
-            file_path = os.path.join(outpath+str(file_port_num), name) 
+        file_port_num = int(port_identifier)
+        file_path = os.path.join(outpath, str(file_port_num), name) 
     except ValueError:
         print(f"Error: Invalid port identifier '{port_identifier}' for file operation. Must be integer or ZMQ name.")
         return
