@@ -1,19 +1,5 @@
 import pytest
 import os
-import sys
-import tempfile
-import shutil
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-@pytest.fixture
-def temp_dir():
-    dirpath = tempfile.mkdtemp()
-    yield dirpath
-    if os.path.exists(dirpath):
-        shutil.rmtree(dirpath)
-
 
 class TestSafeLiteralEval:
 
@@ -45,6 +31,14 @@ class TestSafeLiteralEval:
 
 
 class TestTryparam:
+
+    @pytest.fixture(autouse=True)
+    def reset_params(self):
+        from concore import params
+        original_params = params.copy()
+        yield
+        params.clear()
+        params.update(original_params)
 
     def test_returns_existing_parameter(self):
         from concore import tryparam, params
@@ -86,9 +80,7 @@ class TestPublicAPI:
         assert concore is not None
 
     def test_core_functions_exist(self):
-        from concore import safe_literal_eval
-        from concore import tryparam
-        from concore import default_maxtime
+        from concore import safe_literal_eval, tryparam, default_maxtime
         
         assert callable(safe_literal_eval)
         assert callable(tryparam)
