@@ -76,8 +76,8 @@ class TestDefaultConfiguration:
 class TestPublicAPI:
 
     def test_module_imports_successfully(self):
-        import concore
-        assert concore is not None
+        from concore import safe_literal_eval
+        assert safe_literal_eval is not None
 
     def test_core_functions_exist(self):
         from concore import safe_literal_eval, tryparam, default_maxtime
