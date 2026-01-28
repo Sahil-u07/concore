@@ -4,6 +4,7 @@ from ast import literal_eval
 import sys
 import re
 import zmq # Added for ZeroMQ
+import numpy as np # Added for numpy type conversion
 
 # if windows, create script to kill this process 
 # because batch files don't provide easy way to know pid of last command
@@ -99,6 +100,24 @@ def terminate_zmq():
         except Exception as e:
             print(f"Error while terminating ZMQ port {port.address}: {e}")
 # --- ZeroMQ Integration End ---
+
+
+# NumPy Type Conversion Helper
+def convert_numpy_to_python(obj):
+    #Recursively convert numpy types to native Python types.
+    #This is necessary because literal_eval cannot parse numpy representations
+    #like np.float64(1.0), but can parse native Python types like 1.0.
+    if isinstance(obj, np.generic):
+        # Convert numpy scalar types to Python native types
+        return obj.item()
+    elif isinstance(obj, list):
+        return [convert_numpy_to_python(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_to_python(item) for item in obj)
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_to_python(value) for key, value in obj.items()}
+    else:
+        return obj
 
 # ===================================================================
 # File & Parameter Handling
@@ -229,8 +248,10 @@ def read(port_identifier, name, initstr_val):
             ins = infile.read()
     except FileNotFoundError:
         ins = str(initstr_val) 
+        s += ins  # Update s to break unchanged() loop
     except Exception as e:
         print(f"Error reading {file_path}: {e}. Using default value.")
+        s += str(initstr_val)  # Update s to break unchanged() loop
         return default_return_val 
 
     # Retry logic if file is empty
@@ -248,6 +269,7 @@ def read(port_identifier, name, initstr_val):
 
     if len(ins) == 0:
         print(f"Max retries reached for {file_path}, using default value.")
+        s += str(initstr_val)  # Update s to break unchanged() loop
         return default_return_val
 
     s += ins 
@@ -304,7 +326,9 @@ def write(port_identifier, name, val, delta=0):
     try:
         with open(file_path, "w") as outfile:
             if isinstance(val, list):
-                data_to_write = [simtime + delta] + val
+                # Convert numpy types to native Python types
+                val_converted = convert_numpy_to_python(val)
+                data_to_write = [simtime + delta] + val_converted
                 outfile.write(str(data_to_write))
                 simtime += delta 
             else: 
