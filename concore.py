@@ -105,6 +105,24 @@ def terminate_zmq():
             logging.error(f"Error while terminating ZMQ port {port.address}: {e}")
 # --- ZeroMQ Integration End ---
 
+
+# NumPy Type Conversion Helper
+def convert_numpy_to_python(obj):
+    #Recursively convert numpy types to native Python types.
+    #This is necessary because literal_eval cannot parse numpy representations
+    #like np.float64(1.0), but can parse native Python types like 1.0.
+    if isinstance(obj, np.generic):
+        # Convert numpy scalar types to Python native types
+        return obj.item()
+    elif isinstance(obj, list):
+        return [convert_numpy_to_python(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_to_python(item) for item in obj)
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_to_python(value) for key, value in obj.items()}
+    else:
+        return obj
+
 # ===================================================================
 # File & Parameter Handling
 # ===================================================================
@@ -130,13 +148,15 @@ retrycount = 0
 inpath = "./in" #must be rel path for local
 outpath = "./out"
 simtime = 0
+concore_params_file = os.path.join(inpath + "1", "concore.params")
+concore_maxtime_file = os.path.join(inpath + "1", "concore.maxtime")
 
 #9/21/22
 # ===================================================================
 # Parameter Parsing
 # ===================================================================
 try:
-    sparams_path = os.path.join(inpath + "1", "concore.params")
+    sparams_path = concore_params_file
     if os.path.exists(sparams_path):
         with open(sparams_path, "r") as f:
             sparams = f.read()
@@ -176,8 +196,7 @@ def tryparam(n, i):
 def default_maxtime(default):
     """Read maximum simulation time from file or use default."""
     global maxtime
-    maxtime_path = os.path.join(inpath + "1", "concore.maxtime")
-    maxtime = safe_literal_eval(maxtime_path, default)
+    maxtime = safe_literal_eval(concore_maxtime_file, default)
 
 default_maxtime(100)
 
@@ -225,7 +244,7 @@ def read(port_identifier, name, initstr_val):
         return default_return_val
 
     time.sleep(delay) 
-    file_path = os.path.join(inpath+str(file_port_num), name)
+    file_path = os.path.join(inpath + str(file_port_num), name)
     ins = ""
 
     try:
@@ -233,6 +252,7 @@ def read(port_identifier, name, initstr_val):
             ins = infile.read()
     except FileNotFoundError:
         ins = str(initstr_val) 
+        s += ins  # Update s to break unchanged() loop
     except Exception as e:
         logging.error(f"Error reading {file_path}: {e}. Using default value.")
         return default_return_val 
@@ -291,11 +311,8 @@ def write(port_identifier, name, val, delta=0):
     
     # Case 2: File-based port
     try:
-        if isinstance(port_identifier, str) and port_identifier in zmq_ports:
-            file_path = os.path.join("../"+port_identifier, name)
-        else:
-            file_port_num = int(port_identifier)
-            file_path = os.path.join(outpath+str(file_port_num), name) 
+        file_port_num = int(port_identifier)
+        file_path = os.path.join(outpath + str(file_port_num), name) 
     except ValueError:
         logging.error(f"Error: Invalid port identifier '{port_identifier}' for file operation. Must be integer or ZMQ name.")
         return
@@ -310,7 +327,9 @@ def write(port_identifier, name, val, delta=0):
     try:
         with open(file_path, "w") as outfile:
             if isinstance(val, list):
-                data_to_write = [simtime + delta] + val
+                # Convert numpy types to native Python types
+                val_converted = convert_numpy_to_python(val)
+                data_to_write = [simtime + delta] + val_converted
                 outfile.write(str(data_to_write))
                 simtime += delta 
             else: 
