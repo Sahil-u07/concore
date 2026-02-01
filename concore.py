@@ -5,6 +5,7 @@ from ast import literal_eval
 import sys
 import re
 import zmq
+import numpy as np
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s - %(message)s'
