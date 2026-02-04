@@ -6,6 +6,9 @@ import sys
 import re
 import zmq
 import numpy as np
+import atexit
+import signal
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s - %(message)s'
@@ -98,12 +101,31 @@ def init_zmq_port(port_name, port_type, address, socket_type_str):
         logging.error(f"An unexpected error occurred during ZMQ port initialization for {port_name}: {e}")
 
 def terminate_zmq():
-    for port in zmq_ports.values():
+    """Clean up all ZMQ sockets and contexts before exit."""
+    if not zmq_ports:
+        return  # No ports to clean up
+    
+    print("\nCleaning up ZMQ resources...")
+    for port_name, port in zmq_ports.items():
         try:
             port.socket.close()
             port.context.term()
+            print(f"Closed ZMQ port: {port_name}")
         except Exception as e:
             logging.error(f"Error while terminating ZMQ port {port.address}: {e}")
+    zmq_ports.clear()
+
+def signal_handler(sig, frame):
+    """Handle interrupt signals gracefully."""
+    print(f"\nReceived signal {sig}, shutting down gracefully...")
+    terminate_zmq()
+    sys.exit(0)
+
+# Register cleanup handlers
+atexit.register(terminate_zmq)
+signal.signal(signal.SIGINT, signal_handler)   # Handle Ctrl+C
+signal.signal(signal.SIGTERM, signal_handler)  # Handle termination
+
 # --- ZeroMQ Integration End ---
 
 
