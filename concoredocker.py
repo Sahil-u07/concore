@@ -30,8 +30,19 @@ def parse_params(sparams):
     if not sparams:
         return params
 
+    s = sparams.strip()
+
+    # full dict literal
+    if s.startswith("{") and s.endswith("}"):
+        try:
+            val = literal_eval(s)
+            if isinstance(val, dict):
+                return val
+        except (ValueError, SyntaxError):
+            pass
+
     # keep backward compatibility: comma-separated params
-    for item in sparams.split(","):
+    for item in s.split(","):
         if "=" in item:
             key, value = item.split("=", 1)
             key = key.strip()
@@ -46,7 +57,8 @@ def parse_params(sparams):
     return params
 
 try:
-    sparams = open(concore_params_file).read().strip()
+    with open(concore_params_file, "r") as f:
+        sparams = f.read().strip()
 
     if sparams and sparams[0] == '"':  # windows keeps quotes
         sparams = sparams[1:]

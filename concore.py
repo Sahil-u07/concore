@@ -157,19 +157,22 @@ concore_maxtime_file = os.path.join(inpath + "1", "concore.maxtime")
 # Parameter Parsing
 # ===================================================================
 def parse_params(sparams: str) -> dict:
-    """Parse semicolon-delimited key=value pairs into a dictionary.
-    
-    Args:
-        sparams: String in format "key1=value1;key2=value2"
-    
-    Returns:
-        Dictionary with parsed key-value pairs
-    """
     params = {}
     if not sparams:
         return params
 
-    for item in sparams.split(";"):
+    s = sparams.strip()
+
+    #full dict literal
+    if s.startswith("{") and s.endswith("}"):
+        try:
+            val = literal_eval(s)
+            if isinstance(val, dict):
+                return val
+        except (ValueError, SyntaxError):
+            pass
+
+    for item in s.split(";"):
         if "=" in item:
             key, value = item.split("=", 1)  # split only once
             key=key.strip()
@@ -187,7 +190,7 @@ try:
     sparams_path = concore_params_file
     if os.path.exists(sparams_path):
         with open(sparams_path, "r") as f:
-            sparams = f.read()
+            sparams = f.read().strip()
         if sparams: # Ensure sparams is not empty
             # Windows sometimes keeps quotes
             if sparams[0] == '"' and sparams[-1] == '"':  #windows keeps "" need to remove
