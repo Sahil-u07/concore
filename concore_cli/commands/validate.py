@@ -2,7 +2,41 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from rich.panel import Panel
 from rich.table import Table
+from collections import defaultdict, deque
 import re
+
+def detect_cycles(adjacency, node_ids, node_id_to_label):
+    """Detect cycles in the graph using DFS."""
+    cycles = []
+    visited = set()
+    rec_stack = set()
+    
+    def dfs(node, path):
+        visited.add(node)
+        rec_stack.add(node)
+        path.append(node)
+        
+        for neighbor in adjacency.get(node, []):
+            if neighbor not in visited:
+                if dfs(neighbor, path):
+                    return True
+            elif neighbor in rec_stack:
+                # Found a cycle
+                cycle_start = path.index(neighbor)
+                cycle_nodes = path[cycle_start:]
+                cycle_labels = [node_id_to_label.get(n, n) for n in cycle_nodes]
+                cycles.append(' → '.join(cycle_labels) + f' → {cycle_labels[0]}')
+                return True
+        
+        path.pop()
+        rec_stack.remove(node)
+        return False
+    
+    for node in node_ids:
+        if node not in visited:
+            dfs(node, [])
+    
+    return cycles
 
 def validate_workflow(workflow_file, console):
     workflow_path = Path(workflow_file)
@@ -13,6 +47,7 @@ def validate_workflow(workflow_file, console):
     errors = []
     warnings = []
     info = []
+    node_id_to_label = {}
     
     try:
         with open(workflow_path, 'r') as f:
@@ -46,32 +81,106 @@ def validate_workflow(workflow_file, console):
             info.append(f"Found {len(edges)} edge(s)")
         
         node_labels = []
+        node_label_counts = defaultdict(int)
+        
         for node in nodes:
             try:
+                node_id = node.get('id')
                 label_tag = node.find('y:NodeLabel')
                 if label_tag and label_tag.text:
                     label = label_tag.text.strip()
                     node_labels.append(label)
+                    node_label_counts[label] += 1
+                    if node_id:
+                        node_id_to_label[node_id] = label
                     
                     if ':' not in label:
                         warnings.append(f"Node '{label}' missing format 'ID:filename'")
                     else:
-                        parts = label.split(':')
+                        parts = label.split(':', 1)  # Split only on first colon
                         if len(parts) != 2:
                             warnings.append(f"Node '{label}' has invalid format")
                         else:
-                            node_id, filename = parts
+                            node_id_part, filename = parts
                             if not filename:
                                 errors.append(f"Node '{label}' has no filename")
-                            elif not any(filename.endswith(ext) for ext in ['.py', '.cpp', '.m', '.v', '.java']):
-                                warnings.append(f"Node '{label}' has unusual file extension")
-                else:
-                    warnings.append(f"Node {node.get('id', 'unknown')} has no label")
-            except Exception as e:
-                warnings.append(f"Error parsing node: {str(e)}")
+                            elif not any(filename.endswith(ext) for ext in ['.py', '.cpp', '.hpp', '.c', '.h', '.m', '.v', '.java']):
+                                warnings.append(f"Node '{label}' file '{filename}' has unusual extension")
         
-        node_ids = {node.get('id') for node in nodes if node.get('id')}
+        # Build adjacency list for cycle detection
+        adjacency = defaultdict(list)
+        
         for edge in edges:
+            source = edge.get('source')
+            target = edge.get('target')
+            
+            if not source or not target:
+                errors.append("Edge missing source or target")
+                continue
+            
+            if source not in node_ids:
+                errors.append(f"Edge references non-existent source node: {source}")
+            if target not in node_ids:
+                errors.append(f"Edge references non-existent target node: {target}")
+            else:
+                adjacency[source].append(target)
+            
+            # Check for self-loops
+            if source == target:
+                warnings.append(f"Self-loop detected: {node_id_to_label.get(source, source)} → {node_id_to_label.get(source, source)}")
+        
+        # Detect unreachable nodes
+        if nodes and edges:
+            reachable = set()
+            sources_only = set()
+            targets_only = set()
+            
+            for edge in edges:
+                source = edge.get('source')
+                target = edge.get('target')
+                if source:
+                    sources_only.add(source)
+                if target:
+                    targets_only.add(target)
+            
+            # Nodes that only appear as sources (no incoming edges)
+            entry_nodes = sources_only - targets_only
+            
+            # Nodes that only appear as targets (no outgoing edges)
+            exit_nodes = targets_only - sources_only
+            
+            # BFS from entry nodes to find all reachable
+            from collections import deque
+            if entry_nodes:
+                queue = deque(entry_nodes)
+                visited = set(entry_nodes)
+                
+                while queue:
+                    current = queue.popleft()
+                    reachable.add(current)
+                    for neighbor in adjacency.get(current, []):
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            queue.append(neighbor)
+                
+                unreachable = node_ids - reachable
+                if unreachable:
+                    for node_id in unreachable:
+                        label = node_id_to_label.get(node_id, node_id)
+                        warnings.append(f"Unreachable node: {label}")
+            
+            if entry_nodes:
+                info.append(f"Entry point(s): {', '.join([node_id_to_label.get(n, n) for n in entry_nodes])}")
+            if exit_nodes:
+                info.append(f"Exit point(s): {', '.join([node_id_to_label.get(n, n) for n in exit_nodes])}")
+        
+        # Detect simple cycles (warning, not error - cycles may be intentional)
+        cycles_found = detect_cycles(adjacency, node_ids, node_id_to_label)
+        if cycles_found:
+            for cycle_info in cycles_found[:3]:  # Show first 3 cycles
+                warnings.append(f"Cycle detected: {cycle_info}")
+            if len(cycles_found) > 3:
+                warnings.append(f"...and {len(cycles_found) - 3} more cycle(s)
             source = edge.get('source')
             target = edge.get('target')
             
