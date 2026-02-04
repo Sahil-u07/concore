@@ -156,6 +156,33 @@ concore_maxtime_file = os.path.join(inpath + "1", "concore.maxtime")
 # ===================================================================
 # Parameter Parsing
 # ===================================================================
+def parse_params(sparams: str) -> dict:
+    """Parse semicolon-delimited key=value pairs into a dictionary.
+    
+    Args:
+        sparams: String in format "key1=value1;key2=value2"
+    
+    Returns:
+        Dictionary with parsed key-value pairs
+    """
+    params = {}
+    if not sparams:
+        return params
+
+    for item in sparams.split(";"):
+        if "=" in item:
+            key, value = item.split("=", 1)  # split only once
+            key=key.strip()
+            value=value.strip()
+            #try to convert to python type (int, float, list, etc.)
+            # Use literal_eval to preserve backward compatibility (integers/lists)
+            # Fallback to string for unquoted values (paths, URLs)
+            try:
+                params[key] = literal_eval(value)
+            except (ValueError, SyntaxError):
+                params[key] = value
+    return params
+
 try:
     sparams_path = concore_params_file
     if os.path.exists(sparams_path):
@@ -166,16 +193,10 @@ try:
             if sparams[0] == '"' and sparams[-1] == '"':  #windows keeps "" need to remove
                 sparams = sparams[1:-1]
 
-            # Convert key=value;key2=value2 to Python dict format
-            if sparams != '{' and not (sparams.startswith('{') and sparams.endswith('}')): # Check if it needs conversion
-                logging.debug("converting sparams: "+sparams)
-                sparams = "{'"+re.sub(';',",'",re.sub('=',"':",re.sub(' ','',sparams)))+"}"
-                logging.debug("converted sparams: " + sparams)
-            try:
-                params = literal_eval(sparams)
-            except Exception as e:
-                logging.warning(f"bad params content: {sparams}, error: {e}")
-                params = dict()
+            # Parse params using clean function instead of regex
+            logging.debug("parsing sparams: "+sparams)
+            params = parse_params(sparams)
+            logging.debug("parsed params: " + str(params))
         else:
             params = dict()
     else:
