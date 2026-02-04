@@ -56,6 +56,7 @@ def show_status(console):
                         'memory': mem_str
                     })
             except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # Process may have exited or be inaccessible; safe to ignore
                 continue
     
     except Exception as e:
