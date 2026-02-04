@@ -75,6 +75,7 @@ class ZeroMQPort:
 
 # Global ZeroMQ ports registry
 zmq_ports = {}
+_cleanup_in_progress = False
 
 def init_zmq_port(port_name, port_type, address, socket_type_str):
     """
@@ -102,9 +103,15 @@ def init_zmq_port(port_name, port_type, address, socket_type_str):
 
 def terminate_zmq():
     """Clean up all ZMQ sockets and contexts before exit."""
+    global _cleanup_in_progress
+    
+    if _cleanup_in_progress:
+        return  # Already cleaning up, prevent reentrant calls
+    
     if not zmq_ports:
         return  # No ports to clean up
     
+    _cleanup_in_progress = True
     print("\nCleaning up ZMQ resources...")
     for port_name, port in zmq_ports.items():
         try:
@@ -114,17 +121,25 @@ def terminate_zmq():
         except Exception as e:
             logging.error(f"Error while terminating ZMQ port {port.address}: {e}")
     zmq_ports.clear()
+    _cleanup_in_progress = False
 
 def signal_handler(sig, frame):
     """Handle interrupt signals gracefully."""
     print(f"\nReceived signal {sig}, shutting down gracefully...")
+    # Prevent terminate_zmq from being called twice: once here and once via atexit
+    try:
+        atexit.unregister(terminate_zmq)
+    except Exception:
+        # If unregister fails for any reason, proceed with explicit cleanup anyway
+        pass
     terminate_zmq()
     sys.exit(0)
 
 # Register cleanup handlers
 atexit.register(terminate_zmq)
 signal.signal(signal.SIGINT, signal_handler)   # Handle Ctrl+C
-signal.signal(signal.SIGTERM, signal_handler)  # Handle termination
+if not hasattr(sys, 'getwindowsversion'):
+    signal.signal(signal.SIGTERM, signal_handler)  # Handle termination (Unix only)
 
 # --- ZeroMQ Integration End ---
 
