@@ -85,3 +85,40 @@ class TestPublicAPI:
         assert callable(safe_literal_eval)
         assert callable(tryparam)
         assert callable(default_maxtime)
+
+
+class TestParseParams:
+
+    def test_simple_key_value_pairs(self):
+        from concore import parse_params
+        params = parse_params("a=1;b=2")
+        assert params == {"a": 1, "b": 2}
+
+    def test_preserves_whitespace_in_values(self):
+        from concore import parse_params
+        params = parse_params("label = hello world ; x = 5")
+        assert params["label"] == "hello world"
+        assert params["x"] == 5
+
+    def test_embedded_equals_in_value(self):
+        from concore import parse_params
+        params = parse_params("url=https://example.com?a=1&b=2")
+        assert params["url"] == "https://example.com?a=1&b=2"
+
+    def test_numeric_and_list_coercion(self):
+        from concore import parse_params
+        params = parse_params("delay=5;coeffs=[1,2,3]")
+        assert params["delay"] == 5
+        assert params["coeffs"] == [1, 2, 3]
+
+    def test_dict_literal_backward_compatibility(self):
+        from concore import parse_params
+        params = parse_params("{'a': 1, 'b': 2}")
+        assert params == {"a": 1, "b": 2}
+
+    def test_windows_quoted_input(self):
+        from concore import parse_params
+        s = "\"a=1;b=2\""
+        s = s[1:-1]  # simulate quote stripping before parse_params
+        params = parse_params(s)
+        assert params == {"a": 1, "b": 2}
