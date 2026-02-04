@@ -1,5 +1,4 @@
 from rich.table import Table
-from rich.panel import Panel
 import psutil
 import os
 
@@ -18,7 +17,8 @@ def show_status(console):
                 if 'concore' in cmdline.lower() and proc.info['pid'] != current_pid:
                     concore_processes.append(proc)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
+            # Process may have exited or be inaccessible; safe to ignore
+            continue
     
     if not concore_processes:
         console.print("[yellow]No running concore processes found[/yellow]")
@@ -38,7 +38,8 @@ def show_status(console):
             
             table.add_row(pid, name, cmd)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
+            # Process may have exited between iterations
+            continue
     
     console.print(table)
     console.print()

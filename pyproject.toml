@@ -28,3 +28,4 @@ concore = "concore_cli.cli:cli"
 
 [tool.setuptools]
 packages = ["concore_cli", "concore_cli.commands"]
+py-modules = ["mkconcore"]

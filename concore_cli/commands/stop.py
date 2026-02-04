@@ -19,8 +19,9 @@ def stop_all(console):
                     proc.terminate()
                     stopped += 1
                     console.print(f"[green]✓[/green] Stopped process {proc.info['pid']}")
-        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-            pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # Process already exited or access denied; continue
+            continue
     
     if stopped == 0:
         console.print("[yellow]No processes to stop[/yellow]")
