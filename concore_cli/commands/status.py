@@ -38,12 +38,14 @@ def show_status(console):
                         minutes, seconds = divmod(remainder, 60)
                         uptime_str = f"{hours}h {minutes}m {seconds}s"
                     except:
+                        # Failed to calculate uptime
                         uptime_str = "unknown"
                     
                     try:
                         mem_mb = proc.info['memory_info'].rss / 1024 / 1024
                         mem_str = f"{mem_mb:.1f} MB"
                     except:
+                        # Failed to get memory info
                         mem_str = "unknown"
                     
                     command = ' '.join(cmdline[:3]) if len(cmdline) >= 3 else cmdline_str[:50]

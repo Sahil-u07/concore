@@ -31,7 +31,7 @@ def stop_all(console):
                 if is_concore:
                     processes_to_kill.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # Process may have exited or be inaccessible; safe to ignore
+                # Process already exited or access denied; continue
                 continue
     
     except Exception as e:

@@ -6,15 +6,15 @@ from rich.panel import Panel
 from collections import defaultdict
 import re
 
-def inspect_workflow(workflow_file, console, output_json=False):
+def inspect_workflow(workflow_file, source_dir, output_json, console):
     workflow_path = Path(workflow_file)
     
     if output_json:
-        return _inspect_json(workflow_path)
+        return _inspect_json(workflow_path, source_dir)
     
-    _inspect_rich(workflow_path, console)
+    _inspect_rich(workflow_path, source_dir, console)
 
-def _inspect_rich(workflow_path, console):
+def _inspect_rich(workflow_path, source_dir, console):
     console.print()
     console.print(f"[bold cyan]Workflow:[/bold cyan] {workflow_path.name}")
     console.print()
@@ -60,7 +60,7 @@ def _inspect_rich(workflow_path, console):
                     else:
                         lang_counts['Other'] += 1
                     
-                    src_dir = workflow_path.parent / 'src'
+                    src_dir = workflow_path.parent / source_dir
                     if not (src_dir / filename).exists():
                         missing_files.append(filename)
         
@@ -77,11 +77,11 @@ def _inspect_rich(workflow_path, console):
         
         for edge in edges:
             label_tag = edge.find('y:EdgeLabel')
-            if label_tag and label_tag.text:
-                if edge_label_regex.match(label_tag.text.strip()):
-                    zmq_count += 1
-                else:
-                    file_count += 1
+            label_text = label_tag.text.strip() if label_tag and label_tag.text else ""
+            if label_text and edge_label_regex.match(label_text):
+                zmq_count += 1
+            else:
+                file_count += 1
         
         if zmq_count > 0:
             edges_branch.add(f"ZMQ: {zmq_count}")
@@ -126,7 +126,7 @@ def _inspect_rich(workflow_path, console):
                         }
                         lang = lang_map.get(ext, 'Other')
                         
-                        src_dir = workflow_path.parent / 'src'
+                        src_dir = workflow_path.parent / source_dir
                         status = "✓" if (src_dir / filename).exists() else "✗"
                         
                         table.add_row(node_id, filename, lang, status)
@@ -166,7 +166,7 @@ def _inspect_rich(workflow_path, console):
     except Exception as e:
         console.print(f"[red]Inspection failed:[/red] {str(e)}")
 
-def _inspect_json(workflow_path):
+def _inspect_json(workflow_path, source_dir):
     import json
     
     try:
@@ -174,6 +174,10 @@ def _inspect_json(workflow_path):
             content = f.read()
         
         soup = BeautifulSoup(content, 'xml')
+        
+        if not soup.find('graphml'):
+            print(json.dumps({'error': 'Not a valid GraphML file'}, indent=2))
+            return
         
         nodes = soup.find_all('node')
         edges = soup.find_all('edge')
@@ -202,7 +206,7 @@ def _inspect_json(workflow_path):
                     lang = lang_map.get(ext, 'other')
                     lang_counts[lang] += 1
                     
-                    src_dir = workflow_path.parent / 'src'
+                    src_dir = workflow_path.parent / source_dir
                     exists = (src_dir / filename).exists()
                     if not exists:
                         missing_files.append(filename)
@@ -223,13 +227,13 @@ def _inspect_json(workflow_path):
             target = edge.get('target')
             
             label_tag = edge.find('y:EdgeLabel')
+            label_text = label_tag.text.strip() if label_tag and label_tag.text else ""
             edge_type = 'file'
-            if label_tag and label_tag.text:
-                if edge_label_regex.match(label_tag.text.strip()):
-                    edge_type = 'zmq'
-                    zmq_count += 1
-                else:
-                    file_count += 1
+            if label_text and edge_label_regex.match(label_text):
+                edge_type = 'zmq'
+                zmq_count += 1
+            else:
+                file_count += 1
             
             edge_list.append({
                 'source': source,
