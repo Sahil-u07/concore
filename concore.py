@@ -7,9 +7,17 @@ import re
 import zmq
 import numpy as np
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s - %(message)s'
-) # Added for ZeroMQ
+    level=logging.DEBUG, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    force=True 
+)
+
+#these lines mute the noisy library
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('PIL').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING) 
+logging.getLogger('requests').setLevel(logging.WARNING) 
+
 
 # if windows, create script to kill this process 
 # because batch files don't provide easy way to know pid of last command
