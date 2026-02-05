@@ -73,7 +73,7 @@ import copy_with_port_portname
 import numpy as np
 import shlex  # Added for POSIX shell escaping
 
-# --- SECURITY FIX: Input Validation Helper ---
+# input validation helper
 def safe_name(value, context):
     """
     Validates that the input string does not contain characters dangerous 
@@ -81,11 +81,10 @@ def safe_name(value, context):
     """
     if not value:
         raise ValueError(f"{context} cannot be empty")
-    # Blocks path traversal (/, \\) and shell metacharacters (*, ?, <, >, |, ;, &, $, `)
+    #blocks path traversal (/, \\) and shell metacharacters (*, ?, <, >, |, ;, &, $, `)
     if re.search(r'[\\/:*?"<>|;&`$]', value):
         raise ValueError(f"Unsafe {context}: '{value}' contains illegal characters.")
     return value
-# ---------------------------------------------
 
 MKCONCORE_VER = "22-09-18"
 
@@ -217,15 +216,13 @@ for node in nodes_text:
                 node_label = prefixedgenode + node_label_tag.text
                 node_label = re.sub(r'(\s+|\n)', ' ', node_label)
                 
-                # --- SECURITY FIX: Validate Node Labels ---
-                # Check for malicious characters in container name and source file
+                #Validate node labels
                 if ':' in node_label:
                     container_part, source_part = node_label.split(':', 1)
                     safe_name(container_part, f"Node container name '{container_part}'")
                     safe_name(source_part, f"Node source file '{source_part}'")
                 else:
                     safe_name(node_label, f"Node label '{node_label}'")
-                # ------------------------------------------
 
                 nodes_dict[node['id']] = node_label
                 node_id_to_label_map[node['id']] = node_label.split(':')[0]
@@ -243,10 +240,8 @@ for edge in edges_text:
                 # Filter out ZMQ edges from the file-based edge dictionary by checking the raw label
                 if not edge_label_regex.match(raw_label):
                     
-                    # --- SECURITY FIX: Validate Edge Labels ---
-                    # These labels become directory/volume names. Strict validation required.
+                    #Validate edge labels
                     safe_name(edge_label, f"Edge label '{edge_label}'")
-                    # ------------------------------------------
 
                     if edge_label not in edges_dict:
                         edges_dict[edge_label] = [nodes_dict[edge['source']], []]
@@ -693,7 +688,7 @@ if (concoretype=="docker"):
     for node in nodes_dict:
         containername,sourcecode = nodes_dict[node].split(':')
         if len(sourcecode)!=0:
-            safe_container = shlex.quote(containername) # Added safety
+            safe_container = shlex.quote(containername) 
             if sourcecode.find(".")==-1:
                 logging.debug(f"Generating Docker run command: {DOCKEREXE} run --name={containername+volswr[i]+volsro[i]} {DOCKEREPO}/docker- {sourcecode}")
                 # Use safe_container
@@ -713,7 +708,7 @@ if (concoretype=="docker"):
         if len(sourcecode)!=0:
             #dockername,langext = sourcecode.split(".")
             dockername = sourcecode.split(".")[0] # 3/28/21
-            safe_container = shlex.quote(containername) # Added safety
+            safe_container = shlex.quote(containername)
             fstop.write(DOCKEREXE+' stop '+safe_container+"\n")
             fstop.write(DOCKEREXE+' rm '+safe_container+"\n")
         i=i+1
@@ -746,8 +741,8 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fmaxtime.write(' -v ')
-                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1].strip()+":/") # Added strip()
-                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1].strip()) # Added strip()
+                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1].strip()+":/")
+                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1].strip())
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fmaxtime.write(' docker-concore >/dev/null &\n')
@@ -761,7 +756,7 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fmaxtime.write('sudo docker cp concore.maxtime concore:/')
-                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1].strip()+"/concore.maxtime\n") # Added strip()
+                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1].strip()+"/concore.maxtime\n")
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fmaxtime.write('sudo docker stop concore \n')
@@ -785,8 +780,8 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fparams.write(' -v ')
-                fparams.write(writeedges.split(":")[0].split("-v ")[1].strip()+":/") # Added strip()
-                fparams.write(writeedges.split(":")[0].split("-v ")[1].strip()) # Added strip()
+                fparams.write(writeedges.split(":")[0].split("-v ")[1].strip()+":/")
+                fparams.write(writeedges.split(":")[0].split("-v ")[1].strip())
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fparams.write(' docker-concore >/dev/null &\n')
@@ -800,7 +795,7 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fparams.write('sudo docker cp concore.params concore:/')
-                fparams.write(writeedges.split(":")[0].split("-v ")[1].strip()+"/concore.params\n") # Added strip()
+                fparams.write(writeedges.split(":")[0].split("-v ")[1].strip()+"/concore.params\n")
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fparams.write('sudo docker stop concore \n')
@@ -823,8 +818,8 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 funlock.write(' -v ')
-                funlock.write(writeedges.split(":")[0].split("-v ")[1].strip()+":/") # Added strip()
-                funlock.write(writeedges.split(":")[0].split("-v ")[1].strip()) # Added strip()
+                funlock.write(writeedges.split(":")[0].split("-v ")[1].strip()+":/")
+                funlock.write(writeedges.split(":")[0].split("-v ")[1].strip())
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     funlock.write(' docker-concore >/dev/null &\n')
@@ -838,7 +833,7 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 funlock.write('sudo docker cp ~/concore.apikey concore:/')
-                funlock.write(writeedges.split(":")[0].split("-v ")[1].strip()+"/concore.apikey\n") # Added strip()
+                funlock.write(writeedges.split(":")[0].split("-v ")[1].strip()+"/concore.apikey\n")
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     funlock.write('sudo docker stop concore \n')
@@ -1173,5 +1168,4 @@ if concoretype != "windows":
     os.chmod(outdir+"/clear",stat.S_IRWXU) 
     os.chmod(outdir+"/maxtime",stat.S_IRWXU) 
     os.chmod(outdir+"/params",stat.S_IRWXU) 
-    os.chmod(outdir+"/unlock",stat.S_IRWXU) 
-
+    os.chmod(outdir+"/unlock",stat.S_IRWXU)
