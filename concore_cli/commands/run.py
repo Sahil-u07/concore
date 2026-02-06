@@ -5,10 +5,17 @@ from pathlib import Path
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+def _find_mkconcore_path():
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "mkconcore.py"
+        if candidate.exists():
+            return candidate
+    return None
+
 def run_workflow(workflow_file, source, output, exec_type, auto_build, console):
     workflow_path = Path(workflow_file).resolve()
     source_path = Path(source).resolve()
-    output_path = Path(output)
+    output_path = Path(output).resolve()
     
     if not source_path.exists():
         raise FileNotFoundError(f"Source directory '{source}' not found")
@@ -24,6 +31,10 @@ def run_workflow(workflow_file, source, output, exec_type, auto_build, console):
     console.print(f"[cyan]Type:[/cyan] {exec_type}")
     console.print()
     
+    mkconcore_path = _find_mkconcore_path()
+    if mkconcore_path is None:
+        raise FileNotFoundError("mkconcore.py not found. Please install concore from source.")
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -33,7 +44,8 @@ def run_workflow(workflow_file, source, output, exec_type, auto_build, console):
         
         try:
             result = subprocess.run(
-                [sys.executable, 'mkconcore.py', str(workflow_path), str(source_path), str(output_path), exec_type],
+                [sys.executable, str(mkconcore_path), str(workflow_path), str(source_path), str(output_path), exec_type],
+                cwd=mkconcore_path.parent,
                 capture_output=True,
                 text=True,
                 check=True

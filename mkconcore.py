@@ -74,9 +74,20 @@ import numpy as np
 
 MKCONCORE_VER = "22-09-18"
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _resolve_concore_path():
+    script_concore = os.path.join(SCRIPT_DIR, "concore.py")
+    if os.path.exists(script_concore):
+        return SCRIPT_DIR
+    cwd_concore = os.path.join(os.getcwd(), "concore.py")
+    if os.path.exists(cwd_concore):
+        return os.getcwd()
+    return SCRIPT_DIR
+
 GRAPHML_FILE = sys.argv[1]
 TRIMMED_LOGS = True
-CONCOREPATH = "."
+CONCOREPATH = _resolve_concore_path()
 CPPWIN    = "g++"        #Windows C++  6/22/21
 CPPEXE    = "g++"        #Ubuntu/macOS C++  6/22/21
 VWIN      = "iverilog"   #Windows verilog  6/25/21
