@@ -1,8 +1,9 @@
 import concore
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-print("plot u")
+logging.info("plot u")
 
 concore.delay = 0.005
 concore.default_maxtime(150)
@@ -15,9 +16,9 @@ while(concore.simtime<concore.maxtime):
     while concore.unchanged():
         u = concore.read(1,"u",init_simtime_u)
     concore.write(1,"u",u)
-    print("u="+str(u))
+    logging.debug(f"u={u}")
     ut.append(np.array(u).T)
-print("retry="+str(concore.retrycount))
+logging.info(f"retry={concore.retrycount}")
 
 #################
 

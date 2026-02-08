@@ -1,11 +1,12 @@
 import concore
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 
 size = 10
 lag = concore.tryparam("lag", 0) 
-print("plot ym with lag="+str(lag))
+logging.info(f"plot ym with lag={lag}")
 
 concore.delay = 0.005
 concore.default_maxtime(150)
@@ -21,10 +22,10 @@ while(concore.simtime<concore.maxtime):
     while concore.unchanged():
         ym[cur] = concore.read(1,"ym",init_simtime_ym)
     concore.write(1,"ym",ym[cur])
-    print(" ym="+str(ym[cur]))
+    logging.debug(f" ym={ym[cur]}")
     ymt.append(np.array(ym[(cur-lag) % size]).T)
     cur = (cur+1) % size
-print("retry="+str(concore.retrycount))
+logging.info(f"retry={concore.retrycount}")
 
 #################
 
