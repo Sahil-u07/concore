@@ -71,6 +71,20 @@ import shutil
 import stat
 import copy_with_port_portname
 import numpy as np
+import shlex  # Added for POSIX shell escaping
+
+# input validation helper
+def safe_name(value, context):
+    """
+    Validates that the input string does not contain characters dangerous 
+    for filesystem paths or shell command injection.
+    """
+    if not value:
+        raise ValueError(f"{context} cannot be empty")
+    # blocks path traversal (/, \), control characters, and shell metacharacters (*, ?, <, >, |, ;, &, $, `, ', ", (, ))
+    if re.search(r'[\x00-\x1F\x7F\\/:*?"<>|;&`$\'()]', value):
+        raise ValueError(f"Unsafe {context}: '{value}' contains illegal characters.")
+    return value
 
 MKCONCORE_VER = "22-09-18"
 
@@ -116,6 +130,10 @@ if os.path.exists(CONCOREPATH+"/concore.repo"): # 12/04/21
 prefixedgenode = ""
 sourcedir = sys.argv[2]
 outdir = sys.argv[3]
+
+# Validate outdir argument
+safe_name(outdir, "Output directory argument")
+
 if not os.path.isdir(sourcedir):
     logging.error(f"{sourcedir} does not exist")
     quit()
@@ -200,7 +218,19 @@ for node in nodes_text:
             node_label_tag = data.find('y:NodeLabel')
             if node_label_tag:
                 node_label = prefixedgenode + node_label_tag.text
-                nodes_dict[node['id']] = re.sub(r'(\s+|\n)', ' ', node_label)
+                node_label = re.sub(r'(\s+|\n)', ' ', node_label)
+                
+                #Validate node labels
+                if ':' in node_label:
+                    container_part, source_part = node_label.split(':', 1)
+                    safe_name(container_part, f"Node container name '{container_part}'")
+                    safe_name(source_part, f"Node source file '{source_part}'")
+                else:
+                    safe_name(node_label, f"Node label '{node_label}'")
+                    # Explicitly reject incorrect format to prevent later crashes and ambiguity
+                    raise ValueError(f"Invalid node label '{node_label}': expected format 'container:source' with a ':' separator.")
+
+                nodes_dict[node['id']] = node_label
                 node_id_to_label_map[node['id']] = node_label.split(':')[0]
     except (IndexError, AttributeError):
         logging.debug('A node with no valid properties encountered and ignored')
@@ -215,6 +245,10 @@ for edge in edges_text:
                 edge_label = prefixedgenode + raw_label
                 # Filter out ZMQ edges from the file-based edge dictionary by checking the raw label
                 if not edge_label_regex.match(raw_label):
+                    
+                    #Validate edge labels
+                    safe_name(edge_label, f"Edge label '{edge_label}'")
+
                     if edge_label not in edges_dict:
                         edges_dict[edge_label] = [nodes_dict[edge['source']], []]
                     edges_dict[edge_label][1].append(nodes_dict[edge['target']])
@@ -660,19 +694,16 @@ if (concoretype=="docker"):
     for node in nodes_dict:
         containername,sourcecode = nodes_dict[node].split(':')
         if len(sourcecode)!=0:
+            safe_container = shlex.quote(containername) 
             if sourcecode.find(".")==-1:
                 logging.debug(f"Generating Docker run command: {DOCKEREXE} run --name={containername+volswr[i]+volsro[i]} {DOCKEREPO}/docker- {sourcecode}")
-                frun.write(DOCKEREXE+' run --name='+containername+volswr[i]+volsro[i]+" "+DOCKEREPO+"/docker-"+sourcecode+"&\n")
+                # Use safe_container
+                frun.write(DOCKEREXE+' run --name='+safe_container+volswr[i]+volsro[i]+" "+DOCKEREPO+"/docker-"+shlex.quote(sourcecode)+"&\n")
             else:    
                 dockername,langext = sourcecode.split(".")
                 logging.debug(f"Generating Docker run command for {dockername}: {DOCKEREXE} run --name={containername+volswr[i]+volsro[i]} docker-{dockername}")
-                frun.write(DOCKEREXE+' run --name='+containername+volswr[i]+volsro[i]+" docker-"+dockername+"&\n")
-                #if langext != "m": #3/27/21
-                #    print(DOCKEREXE+' run --name='+containername+volswr[i]+volsro[i]+" docker-"+dockername)
-                #    frun.write(DOCKEREXE+' run --name='+containername+volswr[i]+volsro[i]+" docker-"+dockername+"&\n")
-                #else:
-                #    print(DOCKEREXE+' run --name='+containername+volswr[i]+volsro[i]+" docker-"+dockername+' octave  -qf --eval "run('+"'"+sourcecode+"'"+')"'+"&\n")
-                #    frun.write(DOCKEREXE+' run --name='+containername+volswr[i]+volsro[i]+" docker-"+dockername+' octave  -qf --eval "run('+"'"+sourcecode+"'"+')"'+"&\n")
+                # Use safe_container
+                frun.write(DOCKEREXE+' run --name='+safe_container+volswr[i]+volsro[i]+" docker-"+shlex.quote(dockername)+"&\n")
         i=i+1
     frun.close()
 
@@ -683,8 +714,9 @@ if (concoretype=="docker"):
         if len(sourcecode)!=0:
             #dockername,langext = sourcecode.split(".")
             dockername = sourcecode.split(".")[0] # 3/28/21
-            fstop.write(DOCKEREXE+' stop '+containername+"\n")
-            fstop.write(DOCKEREXE+' rm '+containername+"\n")
+            safe_container = shlex.quote(containername)
+            fstop.write(DOCKEREXE+' stop '+safe_container+"\n")
+            fstop.write(DOCKEREXE+' rm '+safe_container+"\n")
         i=i+1
     fstop.close()
 
@@ -696,7 +728,9 @@ if (concoretype=="docker"):
             dockername = sourcecode.split(".")[0] #3/28/21
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
-                fclear.write(DOCKEREXE+' volume rm ' +writeedges.split(":")[0].split("-v")[1]+"\n")
+                #scape volume path using shlex.quote for Docker commands (defense-in-depth)
+                volume_path = writeedges.split(":")[0].split("-v")[1].strip()
+                fclear.write(DOCKEREXE+' volume rm ' + shlex.quote(volume_path) +"\n") # Added strip() and quote
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fclear.close()
@@ -715,8 +749,10 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fmaxtime.write(' -v ')
-                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1]+":/")
-                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1])
+                # escape volume paths in Docker run
+                vol_path = writeedges.split(":")[0].split("-v ")[1].strip()
+                fmaxtime.write(shlex.quote(vol_path)+":/")
+                fmaxtime.write(shlex.quote(vol_path))
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fmaxtime.write(' docker-concore >/dev/null &\n')
@@ -730,7 +766,9 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fmaxtime.write('sudo docker cp concore.maxtime concore:/')
-                fmaxtime.write(writeedges.split(":")[0].split("-v ")[1]+"/concore.maxtime\n")
+                # escape destination path in docker cp
+                vol_path = writeedges.split(":")[0].split("-v ")[1].strip()
+                fmaxtime.write(shlex.quote(vol_path+"/concore.maxtime")+"\n")
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fmaxtime.write('sudo docker stop concore \n')
@@ -754,8 +792,10 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fparams.write(' -v ')
-                fparams.write(writeedges.split(":")[0].split("-v ")[1]+":/")
-                fparams.write(writeedges.split(":")[0].split("-v ")[1])
+                #escape volume paths
+                vol_path = writeedges.split(":")[0].split("-v ")[1].strip()
+                fparams.write(shlex.quote(vol_path)+":/")
+                fparams.write(shlex.quote(vol_path))
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fparams.write(' docker-concore >/dev/null &\n')
@@ -769,7 +809,9 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 fparams.write('sudo docker cp concore.params concore:/')
-                fparams.write(writeedges.split(":")[0].split("-v ")[1]+"/concore.params\n")
+                # escape destination path
+                vol_path = writeedges.split(":")[0].split("-v ")[1].strip()
+                fparams.write(shlex.quote(vol_path+"/concore.params")+"\n")
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     fparams.write('sudo docker stop concore \n')
@@ -792,8 +834,10 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 funlock.write(' -v ')
-                funlock.write(writeedges.split(":")[0].split("-v ")[1]+":/")
-                funlock.write(writeedges.split(":")[0].split("-v ")[1])
+                # escape volume paths
+                vol_path = writeedges.split(":")[0].split("-v ")[1].strip()
+                funlock.write(shlex.quote(vol_path)+":/")
+                funlock.write(shlex.quote(vol_path))
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     funlock.write(' docker-concore >/dev/null &\n')
@@ -807,7 +851,9 @@ if (concoretype=="docker"):
             writeedges = volswr[i]
             while writeedges.find(":") != -1: 
                 funlock.write('sudo docker cp ~/concore.apikey concore:/')
-                funlock.write(writeedges.split(":")[0].split("-v ")[1]+"/concore.apikey\n")
+                # escape destination path
+                vol_path = writeedges.split(":")[0].split("-v ")[1].strip()
+                funlock.write(shlex.quote(vol_path+"/concore.apikey")+"\n")
                 writeedges = writeedges[writeedges.find(":")+1:]
         i=i+1
     funlock.write('sudo docker stop concore \n')
@@ -822,7 +868,10 @@ if (concoretype=="docker"):
         containername,sourcecode = nodes_dict[node].split(':')
         if len(sourcecode)!=0 and sourcecode.find(".")!=-1: #3/28/21
             dockername,langext = sourcecode.split(".")
-            fdebug.write(DOCKEREXE+' run -it --name='+containername+volswr[i]+volsro[i]+" docker-"+dockername+"&\n")
+            # safe_container added to debug line (POSIX)
+            safe_container = shlex.quote(containername) 
+            safe_image = shlex.quote("docker-" + dockername) # escape docker image name
+            fdebug.write(DOCKEREXE+' run -it --name='+safe_container+volswr[i]+volsro[i]+" "+safe_image+"&\n")
         i=i+1
     fdebug.close()
     os.chmod(outdir+"/build",stat.S_IRWXU)
@@ -937,91 +986,111 @@ for node in nodes_dict:
           logging.error(f"Extension .{langext} is unsupported")
           quit()
       if concoretype=="windows":
+          # manual double quoting for Windows + Input validation above prevents breakout
+          q_container = f'"{containername}"'
+          q_source = f'"{sourcecode}"'
+
           if langext=="py":
-              frun.write('start /B /D '+containername+" "+PYTHONWIN+" "+sourcecode+" >"+containername+"\\concoreout.txt\n")
-              fdebug.write('start /D '+containername+" cmd /K "+PYTHONWIN+" "+sourcecode+"\n")
+              frun.write('start /B /D '+q_container+" "+PYTHONWIN+" "+q_source+" >"+q_container+"\\concoreout.txt\n")
+              fdebug.write('start /D '+q_container+" cmd /K "+PYTHONWIN+" "+q_source+"\n")
           elif langext=="cpp":  #6/25/21
-              frun.write('cd '+containername+'\n')
-              frun.write(CPPWIN+' '+sourcecode+'\n')
+              frun.write('cd '+q_container+'\n')
+              frun.write(CPPWIN+' '+q_source+'\n')
               frun.write('cd ..\n')
-              frun.write('start /B /D '+containername+' cmd /c a >'+containername+'\\concoreout.txt\n')
+              frun.write('start /B /D '+q_container+' cmd /c a >'+q_container+'\\concoreout.txt\n')
               #frun.write('start /B /D '+containername+' "'+CPPWIN+' '+sourcecode+'|a >'+containername+'\\concoreout.txt"\n')
-              fdebug.write('cd '+containername+'\n')
-              fdebug.write(CPPWIN+' '+sourcecode+'\n')
+              fdebug.write('cd '+q_container+'\n')
+              fdebug.write(CPPWIN+' '+q_source+'\n')
               fdebug.write('cd ..\n')
-              fdebug.write('start /D '+containername+' cmd /K a\n')
+              fdebug.write('start /D '+q_container+' cmd /K a\n')
               #fdebug.write('start /D '+containername+' cmd /K "'+CPPWIN+' '+sourcecode+'|a"\n')
           elif langext=="v":  #6/25/21
-              frun.write('cd '+containername+'\n')
-              frun.write(VWIN+' '+sourcecode+'\n')
+              frun.write('cd '+q_container+'\n')
+              frun.write(VWIN+' '+q_source+'\n')
               frun.write('cd ..\n')
-              frun.write('start /B /D '+containername+' cmd /c vvp a.out >'+containername+'\\concoreout.txt\n')
-              fdebug.write('cd '+containername+'\n')
-              fdebug.write(VWIN+' '+sourcecode+'\n')
+              frun.write('start /B /D '+q_container+' cmd /c vvp a.out >'+q_container+'\\concoreout.txt\n')
+              fdebug.write('cd '+q_container+'\n')
+              fdebug.write(VWIN+' '+q_source+'\n')
               fdebug.write('cd ..\n')
-              fdebug.write('start /D '+containername+' cmd /K vvp a.out\n')
+              fdebug.write('start /D '+q_container+' cmd /K vvp a.out\n')
               #fdebug.write('start /D '+containername+' cmd /K "'+CPPWIN+' '+sourcecode+'|a"\n')
           elif langext=="m":  #3/23/21
+              # Use q_source in Windows commands to ensure quoting consistency
               if M_IS_OCTAVE:   
-                  frun.write('start /B /D '+containername+" "+OCTAVEWIN+' -qf --eval "run('+"'"+sourcecode+"'"+')"'+" >"+containername+"\\concoreout.txt\n")
-                  fdebug.write('start /D '+containername+" cmd /K " +OCTAVEWIN+' -qf --eval "run('+"'"+sourcecode+"'"+')"'+"\n")
+                  frun.write('start /B /D '+q_container+" "+OCTAVEWIN+' -qf --eval "run('+q_source+')"'+" >"+q_container+"\\concoreout.txt\n")
+                  fdebug.write('start /D '+q_container+" cmd /K " +OCTAVEWIN+' -qf --eval "run('+q_source+')"'+"\n")
               else:  #  4/2/21
-                  frun.write('start /B /D '+containername+" "+MATLABWIN+' -batch "run('+"'"+sourcecode+"'"+')"'+" >"+containername+"\\concoreout.txt\n")
-                  fdebug.write('start /D '+containername+" cmd /K " +MATLABWIN+' -batch "run('+"'"+sourcecode+"'"+')"'+"\n")
+                  frun.write('start /B /D '+q_container+" "+MATLABWIN+' -batch "run('+q_source+')"'+" >"+q_container+"\\concoreout.txt\n")
+                  fdebug.write('start /D '+q_container+" cmd /K " +MATLABWIN+' -batch "run('+q_source+')"'+"\n")
       else:
+            #use shlex.quote for POSIX systems
+            safe_container = shlex.quote(containername)
+            safe_source = shlex.quote(sourcecode)
+
             if langext == "py":
-                frun.write('(cd "' + containername + '"; ' + PYTHONEXE + ' ' + sourcecode + ' >concoreout.txt & echo $! >concorepid) &\n')
+                frun.write('(cd ' + safe_container + '; ' + PYTHONEXE + ' ' + safe_source + ' >concoreout.txt & echo $! >concorepid) &\n')
                 if ubuntu:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + containername + '\\"; ' + PYTHONEXE + ' ' + sourcecode + '; bash" &\n')
+                    # quote the directory path inside the inner bash command
+                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + safe_container + '\\"; ' + PYTHONEXE + ' ' + safe_source + '; bash" &\n')
                 else:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + containername + '\\\\\\"; ' + PYTHONEXE + ' ' + sourcecode + '\\"" \n')
+                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + safe_container + '\\\\\\"; ' + PYTHONEXE + ' ' + safe_source + '\\"" \n')
 
             elif langext == "cpp":  # 6/22/21
-                frun.write('(cd "' + containername + '"; ' + CPPEXE + ' ' + sourcecode + '; ./a.out >concoreout.txt & echo $! >concorepid) &\n')
+                frun.write('(cd ' + safe_container + '; ' + CPPEXE + ' ' + safe_source + '; ./a.out >concoreout.txt & echo $! >concorepid) &\n')
                 if ubuntu:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + containername + '\\"; ' + CPPEXE + ' ' + sourcecode + '; ./a.out; bash" &\n')
+                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + safe_container + '\\"; ' + CPPEXE + ' ' + safe_source + '; ./a.out; bash" &\n')
                 else:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + containername + '\\\\\\"; ' + CPPEXE + ' ' + sourcecode + '; ./a.out\\"" \n')
+                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + safe_container + '\\\\\\"; ' + CPPEXE + ' ' + safe_source + '; ./a.out\\"" \n')
 
             elif langext == "v":    # 6/25/21
-                frun.write('(cd "' + containername + '"; ' + VEXE + ' ' + sourcecode + '; ./a.out >concoreout.txt & echo $! >concorepid) &\n')
+                frun.write('(cd ' + safe_container + '; ' + VEXE + ' ' + safe_source + '; ./a.out >concoreout.txt & echo $! >concorepid) &\n')
                 if ubuntu:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + containername + '\\"; ' + VEXE + ' ' + sourcecode + '; ./a.out; bash" &\n')
+                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + safe_container + '\\"; ' + VEXE + ' ' + safe_source + '; ./a.out; bash" &\n')
                 else:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + containername + '\\\\\\"; ' + VEXE + ' ' + sourcecode + '; vvp a.out\\"" \n')
+                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + safe_container + '\\\\\\"; ' + VEXE + ' ' + safe_source + '; vvp a.out\\"" \n')
 
             elif langext == "sh":   # 5/19/21
-                frun.write('(cd "' + containername + '"; ./' + sourcecode + ' ' + MCRPATH + ' >concoreout.txt & echo $! >concorepid) &\n')
+                # FIX: Escape MCRPATH to prevent shell injection
+                safe_mcr = shlex.quote(MCRPATH)
+                frun.write('(cd ' + safe_container + '; ./' + safe_source + ' ' + safe_mcr + ' >concoreout.txt & echo $! >concorepid) &\n')
                 if ubuntu:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + containername + '\\"; ./' + sourcecode + ' ' + MCRPATH + '; bash" &\n')
+                    fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + safe_container + '\\"; ./' + safe_source + ' ' + safe_mcr + '; bash" &\n')
                 else:
                     fdebug.write('concorewd="$(pwd)"\n')
-                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + containername + '\\\\\\"; ./' + sourcecode + ' ' + MCRPATH + '\\"" \n')
+                    fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + safe_container + '\\\\\\"; ./' + safe_source + ' ' + safe_mcr + '\\"" \n')
 
             elif langext == "m":    #3/23/21
+                # FIX: Verify filename safety for MATLAB to prevent injection in run()
+                # MATLAB/Octave run('filename') is vulnerable if filename contains quotes or metachars.
+                if not re.match(r'^[A-Za-z0-9_./\-]+$', sourcecode):
+                    raise ValueError(f"Invalid MATLAB/Octave source file name: {sourcecode!r}")
+
+                # construct safe eval command
+                safe_eval_cmd = shlex.quote(f"run('{sourcecode}')")
                 if M_IS_OCTAVE:
-                    frun.write('(cd "' + containername + '"; ' + OCTAVEEXE + ' -qf --eval run(\\\'' + sourcecode + '\\\') >concoreout.txt & echo $! >concorepid) &\n')
+                    frun.write('(cd ' + safe_container + '; ' + OCTAVEEXE + ' -qf --eval ' + safe_eval_cmd + ' >concoreout.txt & echo $! >concorepid) &\n')
                     if ubuntu:
                         fdebug.write('concorewd="$(pwd)"\n')
-                        fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + containername + '\\"; ' + OCTAVEEXE + ' -qf --eval run(\\\'' + sourcecode + '\\\'); bash" &\n')
+                        fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + safe_container + '\\"; ' + OCTAVEEXE + ' -qf --eval ' + safe_eval_cmd + '; bash" &\n')
                     else:
                         fdebug.write('concorewd="$(pwd)"\n')
-                        fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + containername + '\\\\\\"; ' + OCTAVEEXE + ' -qf --eval run(\\\\\\\'' + sourcecode + '\\\\\\\')\\"" \n')
+                        #osascript quoting is very complex; minimal safe_container applied
+                        fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + safe_container + '\\\\\\"; ' + OCTAVEEXE + ' -qf --eval run(\\\\\\\'' + sourcecode + '\\\\\\\')\\"" \n')
                 else:
-                    frun.write('(cd "' + containername + '"; ' + MATLABEXE + ' -batch run(\\\'' + sourcecode + '\\\') >concoreout.txt & echo $! >concorepid) &\n')
+                    frun.write('(cd ' + safe_container + '; ' + MATLABEXE + ' -batch ' + safe_eval_cmd + ' >concoreout.txt & echo $! >concorepid) &\n')
                     if ubuntu:
                         fdebug.write('concorewd="$(pwd)"\n')
-                        fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + containername + '\\"; ' + MATLABEXE + ' -batch run(\\\'' + sourcecode + '\\\'); bash" &\n')
+                        fdebug.write('xterm -e bash -c "cd \\"$concorewd/' + safe_container + '\\"; ' + MATLABEXE + ' -batch ' + safe_eval_cmd + '; bash" &\n')
                     else:
                         fdebug.write('concorewd="$(pwd)"\n')
-                        fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + containername + '\\\\\\"; ' + MATLABEXE + ' -batch run(\\\\\\\'' + sourcecode + '\\\\\\\')\\"" \n')
+                        fdebug.write('osascript -e "tell application \\"Terminal\\" to do script \\"cd \\\\\\"$concorewd/' + safe_container + '\\\\\\"; ' + MATLABEXE + ' -batch run(\\\\\\\'' + sourcecode + '\\\\\\\')\\"" \n')
 if concoretype=="posix":
     fstop.write('#!/bin/bash' + "\n")
 i=0 #  3/30/21
@@ -1030,11 +1099,13 @@ for node in nodes_dict:
     if len(sourcecode)!=0:
         dockername = sourcecode.split(".")[0] # 3/28/21
         if concoretype=="windows":
-            fstop.write('cmd /C '+containername+"\\concorekill\n")
-            fstop.write('del '+containername+"\\concorekill.bat\n")
+            q_container = f'"{containername}"'
+            fstop.write('cmd /C '+q_container+"\\concorekill\n")
+            fstop.write('del '+q_container+"\\concorekill.bat\n")
         else:
-            fstop.write('kill -9 `cat '+containername+"/concorepid`\n")
-            fstop.write('rm '+containername+"/concorepid\n")
+            safe_pidfile = shlex.quote(f"{containername}/concorepid")
+            fstop.write('kill -9 `cat '+safe_pidfile+'`\n')
+            fstop.write('rm '+safe_pidfile+'\n')
     i=i+1
 fstop.close()
 
@@ -1047,10 +1118,13 @@ for node in nodes_dict:
         dockername = sourcecode.split(".")[0] #3/28/21
         writeedges = volswr[i]
         while writeedges.find(":") != -1: 
+            path_part = writeedges.split(":")[0].split("-v")[1].strip()
             if concoretype=="windows":
-                fclear.write('del /Q' + writeedges.split(":")[0].split("-v")[1]+ "\\*\n")
+                fclear.write('del /Q "' + path_part + '\\*"\n')
             else:
-                fclear.write('rm ' + writeedges.split(":")[0].split("-v")[1]+ "/*\n")
+                # FIX: Safer wildcard removal. 
+                # Avoid quoting the wildcard itself ('path/*'). Instead cd into directory and remove contents.
+                fclear.write(f'cd {shlex.quote(path_part)} && rm -f *\n')
             writeedges = writeedges[writeedges.find(":")+1:]
     i=i+1
 fclear.close()
@@ -1064,10 +1138,11 @@ for node in nodes_dict:
         dockername = sourcecode.split(".")[0] #3/28/21
         writeedges = volswr[i]
         while writeedges.find(":") != -1: 
+            path_part = writeedges.split(":")[0].split("-v")[1].strip()
             if concoretype=="windows":
-                fmaxtime.write('echo %1 >' + writeedges.split(":")[0].split("-v")[1]+ "\\concore.maxtime\n")
+                fmaxtime.write('echo %1 >"' + path_part + '\\concore.maxtime"\n')
             else:
-                fmaxtime.write('echo "$1" >' + writeedges.split(":")[0].split("-v")[1]+ "/concore.maxtime\n")
+                fmaxtime.write('echo "$1" >' + shlex.quote(path_part + "/concore.maxtime") + '\n')
             writeedges = writeedges[writeedges.find(":")+1:]
     i=i+1
 fmaxtime.close()
@@ -1081,10 +1156,11 @@ for node in nodes_dict:
         dockername = sourcecode.split(".")[0] #3/28/21
         writeedges = volswr[i]
         while writeedges.find(":") != -1: 
+            path_part = writeedges.split(":")[0].split("-v")[1].strip()
             if concoretype=="windows":
-                fparams.write('echo %1 >' + writeedges.split(":")[0].split("-v")[1]+ "\\concore.params\n")
+                fparams.write('echo %1 >"' + path_part + '\\concore.params"\n')
             else:
-                fparams.write('echo "$1" >' + writeedges.split(":")[0].split("-v")[1]+ "/concore.params\n")
+                fparams.write('echo "$1" >' + shlex.quote(path_part + "/concore.params") + '\n')
             writeedges = writeedges[writeedges.find(":")+1:]
     i=i+1
 fparams.close()
@@ -1098,10 +1174,11 @@ for node in nodes_dict:
         dockername = sourcecode.split(".")[0] #3/28/21
         writeedges = volswr[i]
         while writeedges.find(":") != -1: 
+            path_part = writeedges.split(":")[0].split("-v")[1].strip()
             if concoretype=="windows":
-                funlock.write('copy %HOMEDRIVE%%HOMEPATH%\\concore.apikey' + writeedges.split(":")[0].split("-v")[1]+ "\\concore.apikey\n")
+                funlock.write('copy %HOMEDRIVE%%HOMEPATH%\\concore.apikey "' + path_part + '\\concore.apikey"\n')
             else:
-                funlock.write('cp ~/concore.apikey ' + writeedges.split(":")[0].split("-v")[1]+ "/concore.apikey\n")
+                funlock.write('cp ~/concore.apikey ' + shlex.quote(path_part + "/concore.apikey") + '\n')
             writeedges = writeedges[writeedges.find(":")+1:]
     i=i+1
 funlock.close()
@@ -1122,5 +1199,4 @@ if concoretype != "windows":
     os.chmod(outdir+"/clear",stat.S_IRWXU) 
     os.chmod(outdir+"/maxtime",stat.S_IRWXU) 
     os.chmod(outdir+"/params",stat.S_IRWXU) 
-    os.chmod(outdir+"/unlock",stat.S_IRWXU) 
-
+    os.chmod(outdir+"/unlock",stat.S_IRWXU)
