@@ -107,7 +107,7 @@ def safe_literal_eval(filename, defaultValue):
         with open(filename, "r") as file:
             return literal_eval(file.read())
     except (FileNotFoundError, SyntaxError, ValueError, Exception) as e:
-        logging.error(f"Error reading {filename}: {e}")
+        logging.info(f"Error reading {filename}: {e}")
         return defaultValue
     
 iport = safe_literal_eval("concore.iport", {})
