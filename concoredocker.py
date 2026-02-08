@@ -231,7 +231,7 @@ def read(port_identifier, name, initstr_val):
         ins = str(initstr_val)
         s += ins
     except Exception as e:
-        logging.error(f"Error reading {file_path}: {e}")
+        logging.error(f"Error reading {file_path}: {e}. Using default value.")
         return default_return_val
 
     attempts = 0
@@ -262,7 +262,7 @@ def read(port_identifier, name, initstr_val):
             logging.warning(f"Warning: Unexpected data format in {file_path}: {ins}. Returning raw content or default.")
             return inval
     except Exception as e:
-        logging.error(f"Error parsing {ins}: {e}")
+        logging.error(f"Error parsing content from {file_path} ('{ins}'): {e}. Returning default.")
         return default_return_val
 
 def write(port_identifier, name, val, delta=0):
@@ -287,14 +287,15 @@ def write(port_identifier, name, val, delta=0):
     if isinstance(val, str):
         time.sleep(2 * delay)
     elif not isinstance(val, list):
-        logging.error("write must have list or str")
+        logging.error(f"File write to {file_path} must have list or str value, got {type(val)}")
         return
 
     try:
         with open(file_path, "w") as outfile:
             if isinstance(val, list):
                 val_converted = convert_numpy_to_python(val)
-                outfile.write(str([simtime + delta] + val_converted))
+                data_to_write = [simtime + delta] + val_converted
+                outfile.write(str(data_to_write))
                 simtime += delta
             else:
                 outfile.write(val)
@@ -311,12 +312,12 @@ def initval(simtime_val):
                 simtime = first_element
                 return val[1:]
             else:
-                logging.error(f"Error: First element in initval string '{simtime_val}' is not a number.")
+                logging.error(f"Error: First element in initval string '{simtime_val}' is not a number. Using data part as is or empty.")
                 return val[1:] if len(val) > 1 else []
         else:
-            logging.error(f"Error: initval string '{simtime_val}' is not a list or is empty.")
+            logging.error(f"Error: initval string '{simtime_val}' is not a list or is empty. Returning empty list.")
             return []
     except Exception as e:
-        logging.error(f"Error parsing simtime_val: {e}")
+        logging.error(f"Error parsing simtime_val_str '{simtime_val}': {e}. Returning empty list.")
         return []
 
