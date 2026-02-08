@@ -284,7 +284,7 @@ def write(port_identifier, name, val, delta=0):
     
     try:
         file_port_num = int(port_identifier)
-        file_path = os.path.join(outpath, str(file_port_num), name)
+        file_path = os.path.join(outpath + str(file_port_num), name)
     except ValueError:
         logging.error(f"Error: Invalid port identifier '{port_identifier}' for file operation. Must be integer or ZMQ name.")
         return
