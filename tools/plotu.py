@@ -16,7 +16,7 @@ while(concore.simtime<concore.maxtime):
     while concore.unchanged():
         u = concore.read(1,"u",init_simtime_u)
     concore.write(1,"u",u)
-    logging.info(f"u={u}")
+    logging.debug(f"u={u}")
     ut.append(np.array(u).T)
 logging.info(f"retry={concore.retrycount}")
 

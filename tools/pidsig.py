@@ -73,7 +73,7 @@ while(concore.simtime<concore.maxtime):
     else:
         ustar =  pid_controller(ym)
     
-    logging.info(f"{concore.simtime} u={ustar} ym={ym}")
+    logging.debug(f"{concore.simtime} u={ustar} ym={ym}")
     concore.write(1,"u",list(ustar),delta=0)
 
 
