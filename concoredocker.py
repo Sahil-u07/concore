@@ -25,20 +25,53 @@ concore_params_file = os.path.join(inpath, "1", "concore.params")
 concore_maxtime_file = os.path.join(inpath, "1", "concore.maxtime")
 
 #9/21/22
+def parse_params(sparams):
+    params = {}
+    if not sparams:
+        return params
+
+    s = sparams.strip()
+
+    # full dict literal
+    if s.startswith("{") and s.endswith("}"):
+        try:
+            val = literal_eval(s)
+            if isinstance(val, dict):
+                return val
+        except (ValueError, SyntaxError):
+            pass
+
+    # keep backward compatibility: comma-separated params
+    for item in s.split(","):
+        if "=" in item:
+            key, value = item.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            #try to convert to python type (int, float, list, etc.)
+            # Use literal_eval to preserve backward compatibility (integers/lists)
+            # Fallback to string for unquoted values (paths, URLs)
+            try:
+                params[key] = literal_eval(value)
+            except (ValueError, SyntaxError):
+                params[key] = value
+    return params
+
 try:
-    sparams = open(concore_params_file).read()
-    if sparams[0] == '"':  #windows keeps "" need to remove
+    with open(concore_params_file, "r") as f:
+        sparams = f.read().strip()
+
+    if sparams and sparams[0] == '"':  # windows keeps quotes
         sparams = sparams[1:]
-        sparams = sparams[0:sparams.find('"')]
-    if sparams != '{':
-        print("converting sparams: "+sparams)
-        sparams = "{'"+re.sub(',',",'",re.sub('=',"':",re.sub(' ','',sparams)))+"}"
-        print("converted sparams: " + sparams)
-    try:
-        params = literal_eval(sparams)
-    except:
-        print("bad params: "+sparams)
-except:
+        if '"' in sparams:
+            sparams = sparams[:sparams.find('"')]
+
+    if sparams:
+        print("parsing sparams:", sparams)
+        params = parse_params(sparams)
+    else:
+        params = dict()
+except Exception as e:
+    print(f"Error reading concore.params: {e}")
     params = dict()
 
 #9/30/22
