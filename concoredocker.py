@@ -201,7 +201,11 @@ def read(port_identifier, name, initstr_val):
         try:
             default_return_val = literal_eval(initstr_val)
         except (SyntaxError, ValueError):
-            pass
+            # Failed to parse initstr_val; fall back to the original string value.
+            logging.debug(
+                "Could not parse initstr_val %r with literal_eval; using raw string as default.",
+                initstr_val
+            )
     
     if isinstance(port_identifier, str) and port_identifier in zmq_ports:
         zmq_p = zmq_ports[port_identifier]
