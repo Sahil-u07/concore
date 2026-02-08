@@ -222,7 +222,8 @@ def read(port_identifier, name, initstr_val):
         return default_return_val
 
     time.sleep(delay)
-    file_path = os.path.join(inpath, str(file_port_num), name)
+    # Construct file path consistent with other components (e.g., /in1/<name>)
+    file_path = os.path.join(inpath + str(file_port_num), name)
 
     try:
         with open(file_path, "r") as infile:
