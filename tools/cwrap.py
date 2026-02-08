@@ -59,7 +59,7 @@ except:
     except:
         init_simtime_ym = "[0.0, 0.0, 0.0]"
 
-logging.info(f"API Key: {apikey}")
+logging.debug(f"API Key: {apikey}")
 logging.info(f"Yuyu: {yuyu}")
 logging.info(f"{name1}={init_simtime_u}")
 logging.info(f"{name2}={init_simtime_ym}")

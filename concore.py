@@ -7,7 +7,7 @@ import re
 import zmq
 import numpy as np
 logging.basicConfig(
-    level=logging.DEBUG, 
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
     force=True 
 )
