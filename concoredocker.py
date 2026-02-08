@@ -140,7 +140,7 @@ def parse_params(sparams):
         except (ValueError, SyntaxError):
             pass
 
-    # keep backward compatibility: comma-separated params
+    # Potentially breaking backward compatibility: moving away from the comma-separated params
     for item in s.split(";"):
         if "=" in item:
             key, value = item.split("=", 1)
