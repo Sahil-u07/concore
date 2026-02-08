@@ -1,6 +1,7 @@
 import time
 import logging
 import os
+import atexit
 from ast import literal_eval
 import sys
 import re
@@ -104,6 +105,8 @@ def terminate_zmq():
             port.context.term()
         except Exception as e:
             logging.error(f"Error while terminating ZMQ port {port.address}: {e}")
+
+atexit.register(terminate_zmq)
 # --- ZeroMQ Integration End ---
 
 
