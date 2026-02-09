@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
 
 jobs:
   lint-and-test:
@@ -43,12 +43,14 @@ jobs:
 
       - name: Run tests (pytest)
         run: |
+          set +e
           pytest --tb=short -q \
             --ignore=measurements/ \
             --ignore=0mq/ \
             --ignore=ratc/ \
             --ignore=linktest/
           status=$?
+          set -e
           # Allow success if no tests are collected (pytest exit code 5)
           if [ "$status" -ne 0 ] && [ "$status" -ne 5 ]; then
             exit "$status"
