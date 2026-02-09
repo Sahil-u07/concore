@@ -227,7 +227,7 @@ def read(port_identifier, name, initstr_val):
 
     time.sleep(delay)
     # Construct file path consistent with other components (e.g., /in1/<name>)
-    file_path = os.path.join(inpath + str(file_port_num), name)
+    file_path = os.path.join(inpath, str(file_port_num), name)
 
     try:
         with open(file_path, "r") as infile:
@@ -284,7 +284,7 @@ def write(port_identifier, name, val, delta=0):
     
     try:
         file_port_num = int(port_identifier)
-        file_path = os.path.join(outpath + str(file_port_num), name)
+        file_path = os.path.join(outpath, str(file_port_num), name)
     except ValueError:
         logging.error(f"Error: Invalid port identifier '{port_identifier}' for file operation. Must be integer or ZMQ name.")
         return
