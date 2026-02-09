@@ -65,7 +65,7 @@ public class concoredocker {
         try {
             String content = new String(Files.readAllBytes(Paths.get(inpath + "1/concore.maxtime")));
             maxtime = ((Number) literalEval(content)).intValue();
-        } catch (Exception e) {
+        } catch (IOException | ClassCastException | NumberFormatException e) {
             maxtime = defaultValue;
         }
     }
