@@ -16,6 +16,7 @@ public class concoredocker {
     private static String inpath = "/in";
     private static String outpath = "/out";
     private static Map<String, Object> params = new HashMap<>();
+    private static int simtime = 0;
     private static int maxtime;
 
     public static void main(String[] args) {
@@ -63,19 +64,19 @@ public class concoredocker {
     private static void defaultMaxTime(int defaultValue) {
         try {
             String content = new String(Files.readAllBytes(Paths.get(inpath + "1/concore.maxtime")));
-            // changed assumption from map to list for maxtime, as it usually represents a list of time steps
-            maxtime = ((List<?>) literalEval(content)).size(); 
-        } catch (IOException e) {
+            maxtime = ((Number) literalEval(content)).intValue();
+        } catch (IOException | ClassCastException | NumberFormatException e) {
             maxtime = defaultValue;
         }
     }
 
-    private static void unchanged() {
+    private static boolean unchanged() {
         if (olds.equals(s)) {
             s = "";
-        } else {
-            olds = s;
+            return true;
         }
+        olds = s;
+        return false;
     }
 
     private static Object tryParam(String n, Object i) {
@@ -95,9 +96,13 @@ public class concoredocker {
                 retrycount++;
             }
             s += ins;
-            Object[] inval = ((List<?>) literalEval(ins)).toArray(); // FIXED: Casted to List, converted to Array
-            int simtime = Math.max((int) inval[0], 0); // assuming simtime is an integer
-            return inval[1];
+            List<?> inval = (List<?>) literalEval(ins);
+            simtime = Math.max(simtime, ((Number) inval.get(0)).intValue());
+            Object[] val = new Object[inval.size() - 1];
+            for (int i = 1; i < inval.size(); i++) {
+                val[i - 1] = inval.get(i);
+            }
+            return val;
         } catch (IOException | InterruptedException | ClassCastException e) {
             return initstr;
         }
@@ -110,13 +115,13 @@ public class concoredocker {
             if (val instanceof String) {
                 Thread.sleep(2 * delay);
             } else if (!(val instanceof Object[])) {
-                System.out.println("mywrite must have list or str");
-                System.exit(1);
+                System.out.println("write must have list or str");
+                return;
             }
             if (val instanceof Object[]) {
                 Object[] arrayVal = (Object[]) val;
                 content.append("[")
-                        .append(maxtime + delta)
+                        .append(simtime + delta)
                         .append(",")
                         .append(arrayVal[0]);
                 for (int i = 1; i < arrayVal.length; i++) {
@@ -124,6 +129,7 @@ public class concoredocker {
                             .append(arrayVal[i]);
                 }
                 content.append("]");
+                simtime += delta;
             } else {
                 content.append(val);
             }
@@ -134,13 +140,14 @@ public class concoredocker {
     }
 
     private static Object[] initVal(String simtimeVal) {
-        int simtime = 0;
         Object[] val = new Object[] {};
         try {
-            Object[] arrayVal = ((List<?>) literalEval(simtimeVal)).toArray(); // FIXED: Casted to List, converted to Array
-            simtime = (int) arrayVal[0]; // assuming simtime is an integer
-            val = new Object[arrayVal.length - 1];
-            System.arraycopy(arrayVal, 1, val, 0, val.length);
+            List<?> inval = (List<?>) literalEval(simtimeVal);
+            simtime = ((Number) inval.get(0)).intValue();
+            val = new Object[inval.size() - 1];
+            for (int i = 1; i < inval.size(); i++) {
+                val[i - 1] = inval.get(i);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
