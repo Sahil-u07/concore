@@ -1,17 +1,13 @@
 import click
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich import print as rprint
 import sys
-import os
-from pathlib import Path
 
 from .commands.init import init_project
 from .commands.run import run_workflow
 from .commands.validate import validate_workflow
 from .commands.status import show_status
 from .commands.stop import stop_all
+from .commands.inspect import inspect_workflow
 
 console = Console()
 
@@ -51,6 +47,18 @@ def validate(workflow_file):
     """Validate a workflow file"""
     try:
         validate_workflow(workflow_file, console)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        sys.exit(1)
+
+@cli.command()
+@click.argument('workflow_file', type=click.Path(exists=True))
+@click.option('--source', '-s', default='src', help='Source directory')
+@click.option('--json', 'output_json', is_flag=True, help='Output in JSON format')
+def inspect(workflow_file, source, output_json):
+    """Inspect a workflow file and show its structure"""
+    try:
+        inspect_workflow(workflow_file, source, output_json, console)
     except Exception as e:
         console.print(f"[red]Error:[/red] {str(e)}")
         sys.exit(1)
