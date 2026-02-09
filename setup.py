@@ -27,6 +27,7 @@ setup(
         "beautifulsoup4",
         "lxml",
         "numpy",
+        "pyzmq",
         "scipy",
         "matplotlib",
         "click>=8.0.0",

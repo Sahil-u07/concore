@@ -3,8 +3,7 @@ from github import Github
 import os,sys,platform,base64,time
 
 # Intializing the Variables
-# Hashed token
-BOT_TOKEN = "Z2l0aHViX3BhdF8xMUFYS0pGVFkwU2VhNW9ORjRyN0E5X053WDAwTVBUUU5RVUNTa2lNNlFYZHJET1lZa3B4cTIxS091YVhkeVhUYmRQMzdVUkZaRWpFMjlRRXM5"
+BOT_TOKEN = os.environ.get('CONCORE_BOT_TOKEN', '')
 BOT_ACCOUNT = 'concore-bot'        #bot account name
 REPO_NAME = 'concore-studies'        #study repo name
 UPSTREAM_ACCOUNT = 'ControlCore-Project'  #upstream account name
@@ -113,7 +112,7 @@ try:
     PR_BODY = f"Study Name: {STUDY_NAME}\nAuthor Name: {AUTHOR_NAME}" if PR_BODY == "#" else PR_BODY
     DIR_PATH = STUDY_NAME
     DIR_PATH = DIR_PATH.replace(" ","_")
-    g = Github(decode_token(BOT_TOKEN))
+    g = Github(BOT_TOKEN)
     repo = g.get_user(BOT_ACCOUNT).get_repo(REPO_NAME)
     upstream_repo = g.get_repo(f'{UPSTREAM_ACCOUNT}/{REPO_NAME}') #controlcore-Project/concore-studies
     base_ref = upstream_repo.get_branch(repo.default_branch)

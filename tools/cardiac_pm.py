@@ -2,6 +2,7 @@ import numpy as np
 import pulsatile_model_functions as pmf
 import healthy_params as K
 import concore
+import logging
 
 #x0 = np.loadtxt('pulsatile_steady.txt')
 
@@ -20,6 +21,9 @@ concore.delay = 0.02
 init_simtime_u = "[0.0, 0.0,0.0]"
 init_simtime_ym = "[0.0, 70,0]"
 ym = np.array([concore.initval(init_simtime_ym)]).T
+
+logging.info("Starting Cardiac PM Model")
+
 while(concore.simtime<concore.maxtime):
     while concore.unchanged():
         u = concore.read(1,"u",init_simtime_u)
@@ -29,7 +33,7 @@ while(concore.simtime<concore.maxtime):
     
     #dummy = np.array([hr,mapp])
     dummy = np.array([mapp,hr])
-    print(str(concore.simtime) + " u="+str(u) + "ym=" + str(dummy))
+    logging.debug(f"{concore.simtime} u={u} ym={dummy}")
     #concore.write(1,"ym",list(np.array([hr,mapp])),delta=1)
     concore.write(1,"ym",list(np.array([mapp,hr])),delta=1)
 

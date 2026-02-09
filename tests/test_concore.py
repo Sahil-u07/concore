@@ -1,5 +1,6 @@
 import pytest
 import os
+import numpy as np
 
 class TestSafeLiteralEval:
 
@@ -85,3 +86,129 @@ class TestPublicAPI:
         assert callable(safe_literal_eval)
         assert callable(tryparam)
         assert callable(default_maxtime)
+
+
+class TestNumpyConversion:
+    def test_convert_scalar(self):
+        from concore import convert_numpy_to_python
+        val = np.float64(3.14)
+        res = convert_numpy_to_python(val)
+        assert type(res) == float
+        assert res == 3.14
+
+    def test_convert_list_and_dict(self):
+        from concore import convert_numpy_to_python
+        data = {
+            'a': np.int32(10),
+            'b': [np.float64(1.1), np.float64(2.2)]
+        }
+        res = convert_numpy_to_python(data)
+        assert type(res['a']) == int
+        assert type(res['b'][0]) == float
+        assert res['b'][1] == 2.2
+
+class TestInitVal:
+    @pytest.fixture(autouse=True)
+    def reset_simtime(self):
+        import concore
+        old_simtime = concore.simtime
+        yield
+        concore.simtime = old_simtime
+
+    def test_initval_updates_simtime(self):
+        import concore
+        concore.simtime = 0
+        # initval takes string repr of a list [time, val1, val2...]
+        result = concore.initval("[100, 'data']")
+        
+        assert concore.simtime == 100
+        assert result == ['data']
+
+    def test_initval_handles_bad_input(self):
+        import concore
+        concore.simtime = 0
+        # Input that isn't a list
+        result = concore.initval("not_a_list")
+        assert concore.simtime == 0
+        assert result == []
+
+class TestDefaultMaxTime:
+    def test_uses_file_value(self, temp_dir, monkeypatch):
+        import concore
+        # Mock the path to maxtime file
+        maxtime_file = os.path.join(temp_dir, "concore.maxtime")
+        with open(maxtime_file, "w") as f:
+            f.write("500")
+        
+        monkeypatch.setattr(concore, 'concore_maxtime_file', maxtime_file)
+        concore.default_maxtime(100)
+        
+        assert concore.maxtime == 500
+
+    def test_uses_default_when_missing(self, monkeypatch):
+        import concore
+        monkeypatch.setattr(concore, 'concore_maxtime_file', "missing_file")
+        concore.default_maxtime(999)
+        assert concore.maxtime == 999
+
+class TestUnchanged:
+    @pytest.fixture(autouse=True)
+    def reset_globals(self):
+        import concore
+        old_s = concore.s
+        old_olds = concore.olds
+        yield
+        concore.s = old_s
+        concore.olds = old_olds
+
+    def test_unchanged_returns_true_if_same(self):
+        import concore
+        concore.s = "same"
+        concore.olds = "same"
+        
+        # Should return True and reset s to empty
+        assert concore.unchanged() is True
+        assert concore.s == ''
+
+    def test_unchanged_returns_false_if_diff(self):
+        import concore
+        concore.s = "new"
+        concore.olds = "old"
+        
+        assert concore.unchanged() is False
+        assert concore.olds == "new"
+class TestParseParams:
+
+    def test_simple_key_value_pairs(self):
+        from concore import parse_params
+        params = parse_params("a=1;b=2")
+        assert params == {"a": 1, "b": 2}
+
+    def test_preserves_whitespace_in_values(self):
+        from concore import parse_params
+        params = parse_params("label = hello world ; x = 5")
+        assert params["label"] == "hello world"
+        assert params["x"] == 5
+
+    def test_embedded_equals_in_value(self):
+        from concore import parse_params
+        params = parse_params("url=https://example.com?a=1&b=2")
+        assert params["url"] == "https://example.com?a=1&b=2"
+
+    def test_numeric_and_list_coercion(self):
+        from concore import parse_params
+        params = parse_params("delay=5;coeffs=[1,2,3]")
+        assert params["delay"] == 5
+        assert params["coeffs"] == [1, 2, 3]
+
+    def test_dict_literal_backward_compatibility(self):
+        from concore import parse_params
+        params = parse_params("{'a': 1, 'b': 2}")
+        assert params == {"a": 1, "b": 2}
+
+    def test_windows_quoted_input(self):
+        from concore import parse_params
+        s = "\"a=1;b=2\""
+        s = s[1:-1]  # simulate quote stripping before parse_params
+        params = parse_params(s)
+        assert params == {"a": 1, "b": 2}

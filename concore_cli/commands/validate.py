@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from rich.panel import Panel
 from rich.table import Table
 import re
+import xml.etree.ElementTree as ET
 
 def validate_workflow(workflow_file, console):
     workflow_path = Path(workflow_file)
@@ -22,15 +23,34 @@ def validate_workflow(workflow_file, console):
             errors.append("File is empty")
             return show_results(console, errors, warnings, info)
         
+        # strict XML syntax check
+        try:
+            ET.fromstring(content)
+        except ET.ParseError as e:
+            errors.append(f"Invalid XML: {str(e)}")
+            return show_results(console, errors, warnings, info)
+        
         try:
             soup = BeautifulSoup(content, 'xml')
         except Exception as e:
             errors.append(f"Invalid XML: {str(e)}")
             return show_results(console, errors, warnings, info)
         
-        if not soup.find('graphml'):
+        root = soup.find('graphml')
+        if not root:
             errors.append("Not a valid GraphML file - missing <graphml> root element")
             return show_results(console, errors, warnings, info)
+            
+        # check the graph attributes
+        graph = soup.find('graph')
+        if not graph:
+             errors.append("Missing <graph> element")
+        else:
+             edgedefault = graph.get('edgedefault')
+             if not edgedefault:
+                 errors.append("Graph missing required 'edgedefault' attribute")
+             elif edgedefault not in ['directed', 'undirected']:
+                 errors.append(f"Invalid edgedefault value '{edgedefault}' (must be 'directed' or 'undirected')")
         
         nodes = soup.find_all('node')
         edges = soup.find_all('edge')
@@ -47,8 +67,19 @@ def validate_workflow(workflow_file, console):
         
         node_labels = []
         for node in nodes:
+            #check the node id
+            node_id = node.get('id')
+            if not node_id:
+                errors.append("Node missing required 'id' attribute")
+                #skip further checks for this node to avoid noise
+                continue
+
             try:
+                #robust find: try with namespace prefix first, then without
                 label_tag = node.find('y:NodeLabel')
+                if not label_tag:
+                    label_tag = node.find('NodeLabel')
+                
                 if label_tag and label_tag.text:
                     label = label_tag.text.strip()
                     node_labels.append(label)
@@ -60,13 +91,13 @@ def validate_workflow(workflow_file, console):
                         if len(parts) != 2:
                             warnings.append(f"Node '{label}' has invalid format")
                         else:
-                            node_id, filename = parts
+                            nodeId_part, filename = parts
                             if not filename:
                                 errors.append(f"Node '{label}' has no filename")
                             elif not any(filename.endswith(ext) for ext in ['.py', '.cpp', '.m', '.v', '.java']):
                                 warnings.append(f"Node '{label}' has unusual file extension")
                 else:
-                    warnings.append(f"Node {node.get('id', 'unknown')} has no label")
+                    warnings.append(f"Node {node_id} has no label")
             except Exception as e:
                 warnings.append(f"Error parsing node: {str(e)}")
         
@@ -91,6 +122,9 @@ def validate_workflow(workflow_file, console):
         for edge in edges:
             try:
                 label_tag = edge.find('y:EdgeLabel')
+                if not label_tag:
+                    label_tag = edge.find('EdgeLabel')
+                    
                 if label_tag and label_tag.text:
                     if edge_label_regex.match(label_tag.text.strip()):
                         zmq_edges += 1
