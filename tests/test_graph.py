@@ -241,6 +241,52 @@ class TestGraphValidation(unittest.TestCase):
         
         self.assertIn('cycles', result.output)
         self.assertIn('control loops', result.output)
+    
+    def test_validate_port_zero(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:script1.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:script2.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>0x0_invalid</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('port_zero.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('must be at least 1', result.output)
+    
+    def test_validate_port_exceeds_maximum(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:script1.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:script2.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>0x10000_toobig</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('port_max.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('exceeds maximum (65535)', result.output)
 
 if __name__ == '__main__':
     unittest.main()

@@ -47,7 +47,12 @@ def run(workflow_file, source, output, type, auto_build):
 
 @cli.command()
 @click.argument('workflow_file', type=click.Path(exists=True))
-@click.option('--source', '-s', type=click.Path(exists=True), help='Source directory to check file references')
+@click.option(
+    '--source',
+    '-s',
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    help='Source directory to check file references',
+)
 def validate(workflow_file, source):
     """Validate a workflow file"""
     try:

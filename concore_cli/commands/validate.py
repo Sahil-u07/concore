@@ -161,10 +161,12 @@ def _check_source_files(soup, source_path, errors, warnings):
             
         label = label_tag.text.strip()
         if ':' not in label:
+            warnings.append(f"Skipping node with invalid label format (expected 'ID:filename')")
             continue
             
         parts = label.split(':')
         if len(parts) != 2:
+            warnings.append(f"Skipping node '{label}' with invalid format")
             continue
             
         _, filename = parts
@@ -230,6 +232,13 @@ def _check_zmq_ports(soup, errors, warnings):
         port_name = match.group(2)
         port_num = int(port_hex, 16)
         
+        if port_num < 1:
+            errors.append(f"Invalid port number: {port_num} (0x{port_hex}) must be at least 1")
+            continue
+        elif port_num > 65535:
+            errors.append(f"Invalid port number: {port_num} (0x{port_hex}) exceeds maximum (65535)")
+            continue
+        
         if port_num in ports_used:
             existing_name = ports_used[port_num]
             if existing_name != port_name:
@@ -239,8 +248,6 @@ def _check_zmq_ports(soup, errors, warnings):
         
         if port_num < 1024:
             warnings.append(f"Port {port_num} (0x{port_hex}) is in reserved range (< 1024)")
-        elif port_num > 65535:
-            errors.append(f"Invalid port number: {port_num} (0x{port_hex}) exceeds maximum (65535)")
 
 def show_results(console, errors, warnings, info):
     if errors:
