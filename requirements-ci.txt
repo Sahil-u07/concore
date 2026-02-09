@@ -1,0 +1,6 @@
+# Minimal dependencies for CI (linting and testing)
+# Does not include heavyweight packages like tensorflow
+pytest
+ruff
+pyzmq
+numpy

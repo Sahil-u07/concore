@@ -7,7 +7,7 @@ on:
     branches: [main, master]
 
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
     
     steps:
@@ -23,8 +23,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest ruff
+          pip install -r requirements-ci.txt
+        # Uses minimal CI requirements (no tensorflow/heavy packages)
 
       - name: Run linter (ruff)
         run: |
@@ -47,13 +47,37 @@ jobs:
             --ignore=measurements/ \
             --ignore=0mq/ \
             --ignore=ratc/ \
-            --ignore=linktest/ \
-            || true
-        # Allow pytest to pass even if no tests are collected yet
-        # Remove "|| true" once proper tests are added
-        # Ignores: experimental/config-dependent scripts
+            --ignore=linktest/
+          status=$?
+          # Allow success if no tests are collected (pytest exit code 5)
+          if [ "$status" -ne 0 ] && [ "$status" -ne 5 ]; then
+            exit "$status"
+          fi
+        # Fails on real test failures, passes on no tests collected
+
+  docker-build:
+    runs-on: ubuntu-latest
+    # Only run when Dockerfile.py or related files change
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && 
+       contains(github.event.pull_request.changed_files, 'Dockerfile'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if Dockerfile.py changed
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            dockerfile:
+              - 'Dockerfile.py'
+              - 'requirements.txt'
 
       - name: Validate Dockerfile build
+        if: steps.filter.outputs.dockerfile == 'true'
         run: |
           docker build -f Dockerfile.py -t concore-py-test .
         # Validates that Dockerfile.py can be built successfully
