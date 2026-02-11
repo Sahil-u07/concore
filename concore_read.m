@@ -25,7 +25,10 @@ function [result] = concore_read(port, name, inistr)
          ins = inistr;
      end
      concore.s = strcat(concore.s, ins);
-     result = eval(ins);
+     % Safe numeric parsing (replaces unsafe eval)
+     clean_str = strtrim(ins);
+     clean_str = regexprep(clean_str, '[\[\]]', '');
+     result = sscanf(clean_str, '%f').';
      concore.simtime = max(concore.simtime,result(1));
      result = result(2:length(result));
 end
