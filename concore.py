@@ -298,6 +298,12 @@ def read(port_identifier, name, initstr_val):
         zmq_p = zmq_ports[port_identifier]
         try:
             message = zmq_p.recv_json_with_retry()
+            # Strip simtime prefix if present (mirroring file-based read behavior)
+            if isinstance(message, list) and len(message) > 0:
+                first_element = message[0]
+                if isinstance(first_element, (int, float)):
+                    simtime = max(simtime, first_element)
+                    return message[1:]
             return message
         except zmq.error.ZMQError as e:
             logging.error(f"ZMQ read error on port {port_identifier} (name: {name}): {e}. Returning default.")
@@ -365,7 +371,7 @@ def read(port_identifier, name, initstr_val):
 def write(port_identifier, name, val, delta=0):
     """
     Write data either to ZMQ port or file.
-    `val` must be list (with simtime prefix) or string.
+    `val` is the data payload (list or string); write() prepends [simtime + delta] internally.
     """
     global simtime
 
@@ -375,7 +381,13 @@ def write(port_identifier, name, val, delta=0):
         try:
             # Keep ZMQ payloads JSON-serializable by normalizing numpy types.
             zmq_val = convert_numpy_to_python(val)
-            zmq_p.send_json_with_retry(zmq_val)
+            if isinstance(zmq_val, list):
+                # Prepend simtime to match file-based write behavior
+                payload = [simtime + delta] + zmq_val
+                zmq_p.send_json_with_retry(payload)
+                simtime += delta
+            else:
+                zmq_p.send_json_with_retry(zmq_val)
         except zmq.error.ZMQError as e:
             logging.error(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
