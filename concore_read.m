@@ -31,6 +31,15 @@ function [result] = concore_read(port, name, inistr)
      % Normalize comma delimiters to whitespace so sscanf parses all values
      clean_str = strrep(clean_str, ',', ' ');
      result = sscanf(clean_str, '%f').';
-     concore.simtime = max(concore.simtime,result(1));
-     result = result(2:length(result));
+     % Guard against empty parse result to avoid indexing errors
+     if isempty(result)
+         result = [];
+         return;
+     end
+     concore.simtime = max(concore.simtime, result(1));
+     if numel(result) > 1
+         result = result(2:end);
+     else
+         result = [];
+     end
 end
