@@ -378,6 +378,7 @@ def write(port_identifier, name, val, delta=0):
             logging.error(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             logging.error(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
+        return
     
     # Case 2: File-based port
     try:
