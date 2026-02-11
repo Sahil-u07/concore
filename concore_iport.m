@@ -10,6 +10,10 @@ function [result] = concore_iport(target)
                    % Safe numeric parsing (replaces unsafe eval)
                    port_str = strtrim(s(i+length(target):j-1));
                    result = sscanf(port_str, '%f');
+                   if isempty(result)
+                       % Keep the initialized default value (0) if parsing fails
+                       result = 0;
+                   end
                    return
                 end
             end
