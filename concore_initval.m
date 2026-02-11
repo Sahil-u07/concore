@@ -3,6 +3,7 @@ function [result] = concore_initval(simtime_val)
     % Safe numeric parsing (replaces unsafe eval)
     clean_str = strtrim(simtime_val);
     clean_str = regexprep(clean_str, '[\[\]]', '');
+    clean_str = strrep(clean_str, ',', ' ');
     result = sscanf(clean_str, '%f').';
     % Guard against empty or invalid numeric input
     if isempty(result)
