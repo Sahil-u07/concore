@@ -4,7 +4,7 @@ import java.util.*;
  * Test suite for concoredocker.literalEval() recursive descent parser.
  * Covers: dicts, lists, tuples, numbers, strings, booleans, None,
  *         nested structures, escape sequences, scientific notation,
- *         toPythonLiteral serialization, and fractional simtime.
+ *         fractional simtime, and related round-trip parsing behavior.
  */
 public class TestLiteralEval {
     static int passed = 0;
@@ -36,6 +36,7 @@ public class TestLiteralEval {
         testUnterminatedList();
         testUnterminatedDict();
         testUnterminatedTuple();
+        testNonStringDictKey();
 
         System.out.println("\n=== Results: " + passed + " passed, " + failed + " failed out of " + (passed + failed) + " tests ===");
         if (failed > 0) {
@@ -198,15 +199,7 @@ public class TestLiteralEval {
     // --- Round-trip serialization tests ---
 
     static void testRoundTripSerialization() {
-        // Serialize a list with mixed types, then re-parse and verify
-        List<Object> original = new ArrayList<>();
-        original.add(1);
-        original.add(2.5);
-        original.add(true);
-        original.add(false);
-        original.add(null);
-        original.add("hello");
-
+        // Conceptually: a list with mixed types [1, 2.5, true, false, null, "hello"]
         // Use reflection-free approach: build the Python literal manually
         // and verify round-trip through literalEval
         String serialized = "[1, 2.5, True, False, None, 'hello']";
@@ -261,6 +254,17 @@ public class TestLiteralEval {
             failed++;
         } catch (IllegalArgumentException e) {
             check("unterminated tuple throws", true, e.getMessage().contains("Unterminated tuple"));
+        }
+    }
+
+    static void testNonStringDictKey() {
+        // Dict keys must be strings - numeric keys should throw
+        try {
+            concoredocker.literalEval("{123: 'value'}");
+            System.out.println("FAIL: numeric dict key should throw");
+            failed++;
+        } catch (IllegalArgumentException e) {
+            check("numeric dict key throws", true, e.getMessage().contains("Dict keys must be non-null strings"));
         }
     }
 }

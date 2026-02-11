@@ -41,25 +41,39 @@ public class concoredocker {
         }
 
         try {
-            String sparams = new String(Files.readAllBytes(Paths.get(inpath + "1/concore.params")));
+            String sparams = new String(Files.readAllBytes(Paths.get(inpath + "1/concore.params")), java.nio.charset.StandardCharsets.UTF_8);
             if (sparams.length() > 0 && sparams.charAt(0) == '"') { // windows keeps "" need to remove
                 sparams = sparams.substring(1);
                 sparams = sparams.substring(0, sparams.indexOf('"'));
             }
-            if (!sparams.equals("{")) {
+            // Try parsing as dict literal first (matches Python parse_params logic)
+            sparams = sparams.trim();
+            if (sparams.startsWith("{") && sparams.endsWith("}")) {
+                try {
+                    Object parsed = literalEval(sparams);
+                    if (parsed instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> parsedMap = (Map<String, Object>) parsed;
+                        params = parsedMap;
+                    }
+                } catch (Exception e) {
+                    System.out.println("bad params: " + sparams);
+                }
+            } else if (!sparams.isEmpty()) {
+                // Fallback: convert key=value,key=value format to dict
                 System.out.println("converting sparams: " + sparams);
                 sparams = "{'" + sparams.replaceAll(",", ",'").replaceAll("=", "':").replaceAll(" ", "") + "}";
                 System.out.println("converted sparams: " + sparams);
-            }
-            try {
-                Object parsed = literalEval(sparams);
-                if (parsed instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> parsedMap = (Map<String, Object>) parsed;
-                    params = parsedMap;
+                try {
+                    Object parsed = literalEval(sparams);
+                    if (parsed instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> parsedMap = (Map<String, Object>) parsed;
+                        params = parsedMap;
+                    }
+                } catch (Exception e) {
+                    System.out.println("bad params: " + sparams);
                 }
-            } catch (Exception e) {
-                System.out.println("bad params: " + sparams);
             }
         } catch (IOException e) {
             params = new HashMap<>();
@@ -73,7 +87,7 @@ public class concoredocker {
      * Returns empty map if file is empty or malformed (matches Python safe_literal_eval).
      */
     private static Map<String, Object> parseFile(String filename) throws IOException {
-        String content = new String(Files.readAllBytes(Paths.get(filename)));
+        String content = new String(Files.readAllBytes(Paths.get(filename)), java.nio.charset.StandardCharsets.UTF_8);
         content = content.trim();
         if (content.isEmpty()) {
             return new HashMap<>();
@@ -182,7 +196,6 @@ public class concoredocker {
 
         if (ins.length() == 0) {
             System.out.println("Max retries reached for " + filePath + ", using default value.");
-            s += initstr;
             return defaultVal;
         }
 
@@ -197,7 +210,6 @@ public class concoredocker {
         } catch (Exception e) {
             System.out.println("Error parsing " + ins + ": " + e.getMessage());
         }
-        s += initstr;
         return defaultVal;
     }
 
@@ -404,7 +416,12 @@ public class concoredocker {
                 pos++; // skip ':'
                 skipWhitespace();
                 Object value = parseExpression();
-                map.put(key.toString(), value);
+                if (!(key instanceof String)) {
+                    throw new IllegalArgumentException(
+                        "Dict keys must be non-null strings, but got: "
+                        + (key == null ? "null" : key.getClass().getSimpleName()));
+                }
+                map.put((String) key, value);
                 skipWhitespace();
                 if (pos >= input.length()) {
                     throw new IllegalArgumentException("Unterminated dict: missing '}'");
