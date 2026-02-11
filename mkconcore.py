@@ -75,15 +75,21 @@ import numpy as np
 import shlex  # Added for POSIX shell escaping
 
 # input validation helper
-def safe_name(value, context):
+def safe_name(value, context, allow_path=False):
     """
     Validates that the input string does not contain characters dangerous 
     for filesystem paths or shell command injection.
     """
     if not value:
         raise ValueError(f"{context} cannot be empty")
-    # blocks path traversal (/, \), control characters, and shell metacharacters (*, ?, <, >, |, ;, &, $, `, ', ", (, ))
-    if re.search(r'[\x00-\x1F\x7F\\/:*?"<>|;&`$\'()]', value):
+    # blocks control characters and shell metacharacters
+    # allow path separators and drive colons for full paths when needed
+    if allow_path:
+        pattern = r'[\x00-\x1F\x7F*?"<>|;&`$\'()]'
+    else:
+        # blocks path traversal (/, \, :) in addition to shell metacharacters
+        pattern = r'[\x00-\x1F\x7F\\/:*?"<>|;&`$\'()]'
+    if re.search(pattern, value):
         raise ValueError(f"Unsafe {context}: '{value}' contains illegal characters.")
     return value
 
@@ -146,8 +152,8 @@ prefixedgenode = ""
 sourcedir = sys.argv[2]
 outdir = sys.argv[3]
 
-# Validate outdir argument
-safe_name(outdir, "Output directory argument")
+# Validate outdir argument (allow full paths)
+safe_name(outdir, "Output directory argument", allow_path=True)
 
 if not os.path.isdir(sourcedir):
     logging.error(f"{sourcedir} does not exist")
