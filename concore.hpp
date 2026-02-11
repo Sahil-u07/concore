@@ -12,9 +12,11 @@
 //libraries for platform independent delay. Supports C++11 upwards
 #include <chrono>
 #include <thread>
+#ifdef __linux__
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <unistd.h>
+#endif
 #include <cstring>
 #include <cctype>
 
@@ -32,11 +34,11 @@ private:
     string inpath = "./in";
     string outpath = "./out";
 
-    int shmId_create;
-    int shmId_get;
+    int shmId_create = -1;
+    int shmId_get = -1;
 
-    char* sharedData_create;
-    char* sharedData_get;
+    char* sharedData_create = nullptr;
+    char* sharedData_get = nullptr;
     // File sharing:- 0, Shared Memory:- 1
     int communication_iport = 0;  // iport refers to input port
     int communication_oport = 0;  // oport refers to input port
@@ -56,14 +58,23 @@ private:
     Concore(){
         iport = mapParser("concore.iport");
         oport = mapParser("concore.oport");   
-        std::map<std::string, int>::iterator it_iport = iport.begin();
-        std::map<std::string, int>::iterator it_oport = oport.begin();
-        int iport_number = ExtractNumeric(it_iport->first); 
-        int oport_number = ExtractNumeric(it_oport->first);
+        
+        int iport_number = -1;
+        int oport_number = -1;
+        
+        if (!iport.empty()) {
+            std::map<std::string, int>::iterator it_iport = iport.begin();
+            iport_number = ExtractNumeric(it_iport->first);
+        }
+        if (!oport.empty()) {
+            std::map<std::string, int>::iterator it_oport = oport.begin();
+            oport_number = ExtractNumeric(it_oport->first);
+        }
 
         // if iport_number and oport_number is equal to -1 then it refers to File Method, 
         // otherwise it refers to Shared Memory and the number represent the unique key.
 
+#ifdef __linux__
         if(oport_number != -1)
         {
             // oport_number is not equal to -1 so refers to SM and value is key.
@@ -76,7 +87,8 @@ private:
             // iport_number is not equal to -1 so refers to SM and value is key.
             communication_iport = 1;
             this->getSharedMemory(iport_number);
-        }    
+        }
+#endif
     }
 
     /**
@@ -85,12 +97,20 @@ private:
      */
     ~Concore()
     {
+#ifdef __linux__
         // Detach the shared memory segment from the process
-        shmdt(sharedData_create);
-        shmdt(sharedData_get);
+        if (communication_oport == 1 && sharedData_create != nullptr) {
+            shmdt(sharedData_create);
+        }
+        if (communication_iport == 1 && sharedData_get != nullptr) {
+            shmdt(sharedData_get);
+        }
 
         // Remove the shared memory segment
-        shmctl(shmId_create, IPC_RMID, nullptr);
+        if (shmId_create != -1) {
+            shmctl(shmId_create, IPC_RMID, nullptr);
+        }
+#endif
     }
 
     /**
@@ -127,6 +147,7 @@ private:
         return std::stoi(numberString);
     }
 
+#ifdef __linux__
     /**
      * @brief Creates a shared memory segment with the given key.
      * @param key The key for the shared memory segment.
@@ -143,6 +164,7 @@ private:
         sharedData_create = static_cast<char*>(shmat(shmId_create, NULL, 0));
         if (sharedData_create == reinterpret_cast<char*>(-1)) {
             std::cerr << "Failed to attach shared memory segment." << std::endl;
+            sharedData_create = nullptr;
         }
     }
 
@@ -153,7 +175,9 @@ private:
      */
     void getSharedMemory(key_t key)
     {
-        while (true) {
+        int retry = 0;
+        const int MAX_RETRY = 100;
+        while (retry < MAX_RETRY) {
             // Get the shared memory segment created by Writer
             shmId_get = shmget(key, 256, 0666);
             // Check if shared memory exists
@@ -163,11 +187,22 @@ private:
 
             std::cout << "Shared memory does not exist. Make sure the writer process is running." << std::endl;
             sleep(1); // Sleep for 1 second before checking again
+            retry++;
+        }
+
+        if (shmId_get == -1) {
+            std::cerr << "Failed to get shared memory segment after max retries." << std::endl;
+            return;
         }
 
         // Attach the shared memory segment to the process's address space
         sharedData_get = static_cast<char*>(shmat(shmId_get, NULL, 0));
+        if (sharedData_get == reinterpret_cast<char*>(-1)) {
+            std::cerr << "Failed to attach shared memory segment." << std::endl;
+            sharedData_get = nullptr;
+        }
     }
+#endif
 
     /**
      * @brief Parses a file containing port and number mappings and returns a map of the values.
@@ -185,6 +220,10 @@ private:
             ss << portfile.rdbuf();
             portstr = ss.str();
             portfile.close();
+        }
+
+        if (portstr.empty()) {
+            return ans;
         }
 
         portstr[portstr.size()-1]=',';
@@ -303,7 +342,9 @@ private:
             ins = initstr;
         }
         
-        while ((int)ins.length()==0){
+        int retry = 0;
+        const int MAX_RETRY = 100;
+        while ((int)ins.length()==0 && retry < MAX_RETRY){
             this_thread::sleep_for(timespan);
             try{
                 ifstream infile;
@@ -324,8 +365,7 @@ private:
             catch(...){
                 cout<<"Read error";
             }
-            
-            
+            retry++;
         }
         s += ins;
 
@@ -368,7 +408,9 @@ private:
             ins = initstr;
         }
         
-        while ((int)ins.length()==0){
+        int retry = 0;
+        const int MAX_RETRY = 100;
+        while ((int)ins.length()==0 && retry < MAX_RETRY){
             this_thread::sleep_for(timespan);
             try{
                 if(shmId_get != -1) {
@@ -385,6 +427,7 @@ private:
             catch(...){
                 std::cout << "Read error" << std::endl;
             }
+            retry++;
         }
         s += ins;
 
