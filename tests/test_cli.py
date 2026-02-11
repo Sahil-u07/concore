@@ -1,6 +1,7 @@
 import unittest
 import tempfile
 import shutil
+import os
 from pathlib import Path
 from click.testing import CliRunner
 from concore_cli.cli import cli
@@ -82,6 +83,23 @@ class TestConcoreCLI(unittest.TestCase):
             ])
             self.assertEqual(result.exit_code, 0)
             self.assertTrue(Path('out/src/concore.py').exists())
+
+    def test_run_command_default_type(self):
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'test-project'])
+            self.assertEqual(result.exit_code, 0)
+
+            result = self.runner.invoke(cli, [
+                'run',
+                'test-project/workflow.graphml',
+                '--source', 'test-project/src',
+                '--output', 'out'
+            ])
+            self.assertEqual(result.exit_code, 0)
+            if os.name == 'nt':
+                self.assertTrue(Path('out/build.bat').exists())
+            else:
+                self.assertTrue(Path('out/build').exists())
 
     def test_run_command_existing_output(self):
         with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
