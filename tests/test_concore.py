@@ -212,3 +212,35 @@ class TestParseParams:
         s = s[1:-1]  # simulate quote stripping before parse_params
         params = parse_params(s)
         assert params == {"a": 1, "b": 2}
+
+
+class TestWriteZMQ:
+    @pytest.fixture(autouse=True)
+    def reset_zmq_ports(self):
+        import concore
+        original_ports = concore.zmq_ports.copy()
+        yield
+        concore.zmq_ports.clear()
+        concore.zmq_ports.update(original_ports)
+
+    def test_write_converts_numpy_types_for_zmq(self):
+        import concore
+
+        class DummyPort:
+            def __init__(self):
+                self.sent = None
+
+            def send_json_with_retry(self, message):
+                self.sent = message
+
+        dummy = DummyPort()
+        concore.zmq_ports["test_zmq"] = dummy
+
+        payload = [np.int64(7), np.float64(3.5), {"x": np.float32(1.25)}]
+        concore.write("test_zmq", "data", payload)
+
+        assert dummy.sent is not None
+        assert dummy.sent == [7, 3.5, {"x": 1.25}]
+        assert not isinstance(dummy.sent[0], np.generic)
+        assert not isinstance(dummy.sent[1], np.generic)
+        assert not isinstance(dummy.sent[2]["x"], np.generic)
