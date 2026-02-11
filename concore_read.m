@@ -25,7 +25,21 @@ function [result] = concore_read(port, name, inistr)
          ins = inistr;
      end
      concore.s = strcat(concore.s, ins);
-     result = eval(ins);
-     concore.simtime = max(concore.simtime,result(1));
-     result = result(2:length(result));
+     % Safe numeric parsing (replaces unsafe eval)
+     clean_str = strtrim(ins);
+     clean_str = regexprep(clean_str, '[\[\]]', '');
+     % Normalize comma delimiters to whitespace so sscanf parses all values
+     clean_str = strrep(clean_str, ',', ' ');
+     result = sscanf(clean_str, '%f').';
+     % Guard against empty parse result to avoid indexing errors
+     if isempty(result)
+         result = [];
+         return;
+     end
+     concore.simtime = max(concore.simtime, result(1));
+     if numel(result) > 1
+         result = result(2:end);
+     else
+         result = [];
+     end
 end
