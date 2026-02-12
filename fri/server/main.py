@@ -7,7 +7,21 @@ from subprocess import call,check_output
 from pathlib import Path
 import json
 import platform
+import re
 from flask_cors import CORS, cross_origin
+
+# Input validation pattern for safe names (alphanumeric, dash, underscore, slash, dot, space)
+SAFE_INPUT_PATTERN = re.compile(r'^[a-zA-Z0-9_\-/. ]+$')
+
+def validate_input(value, field_name):
+    """Validate that input contains only safe characters."""
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid {field_name}: must be a string")
+    if len(value) > 0 and not SAFE_INPUT_PATTERN.match(value):
+        raise ValueError(f"Invalid {field_name}: contains unsafe characters")
+    return True
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 concore_path = os.path.abspath(os.path.join(cur_path, '../../'))
@@ -304,14 +318,24 @@ def contribute():
         STUDY_NAME = data.get('study')
         STUDY_NAME_PATH = data.get('path')
         BRANCH_NAME = data.get('branch')
+        
+        # Validate all user inputs to prevent command injection
+        validate_input(STUDY_NAME, 'study')
+        validate_input(STUDY_NAME_PATH, 'path')
+        validate_input(AUTHOR_NAME, 'auth')
+        validate_input(BRANCH_NAME, 'branch')
+        validate_input(PR_TITLE, 'title')
+        validate_input(PR_BODY, 'desc')
+        
         if(platform.uname()[0]=='Windows'):
-            proc=check_output(["contribute",STUDY_NAME,STUDY_NAME_PATH,AUTHOR_NAME,BRANCH_NAME,PR_TITLE,PR_BODY],cwd=concore_path,shell=True)
+            proc = subprocess.run(["contribute",STUDY_NAME,STUDY_NAME_PATH,AUTHOR_NAME,BRANCH_NAME,PR_TITLE,PR_BODY],cwd=concore_path,check=True,capture_output=True,text=True)
+            output_string = proc.stdout
         else:
             if len(BRANCH_NAME)==0:
                 proc = check_output([r"./contribute",STUDY_NAME,STUDY_NAME_PATH,AUTHOR_NAME],cwd=concore_path)
             else:
                 proc = check_output([r"./contribute",STUDY_NAME,STUDY_NAME_PATH,AUTHOR_NAME,BRANCH_NAME,PR_TITLE,PR_BODY],cwd=concore_path)
-        output_string = proc.decode()
+            output_string = proc.decode()
         status=200
         if output_string.find("/pulls/")!=-1:
             status=200
@@ -320,6 +344,11 @@ def contribute():
         else:
             status=400
         return jsonify({'message': output_string}),status
+    except ValueError as e:
+        return jsonify({'message': str(e)}), 400
+    except subprocess.CalledProcessError as e:
+        output_string = e.stderr if hasattr(e, 'stderr') and e.stderr else "Command execution failed"
+        return jsonify({'message': output_string}), 501
     except Exception as e:
         output_string = "Some Error occured.Please try after some time"
         status=501
@@ -365,18 +394,34 @@ def library(dir):
     dir_path = os.path.abspath(os.path.join(concore_path, dir_name))
     filename = request.args.get('filename')
     library_path = request.args.get('path')
+    
+    # Validate user inputs to prevent command injection
+    try:
+        validate_input(filename, 'filename')
+        validate_input(library_path, 'path')
+    except ValueError as e:
+        resp = jsonify({'message': str(e)})
+        resp.status_code = 400
+        return resp
+    
     proc = 0
     if (library_path == None or library_path  == ''):
         library_path = r"../tools"
-    if(platform.uname()[0]=='Windows'):
-        proc = subprocess.check_output([r"..\library", library_path, filename],shell=True, cwd=dir_path)
-    else:
-        proc = subprocess.check_output([r"../library", library_path, filename], cwd=dir_path)
-    if(proc != 0):
-        resp = jsonify({'message': proc.decode("utf-8")})
+    try:
+        if(platform.uname()[0]=='Windows'):
+            result = subprocess.run([r"..\library", library_path, filename], cwd=dir_path, check=True, capture_output=True, text=True)
+            proc = result.stdout
+        else:
+            proc = subprocess.check_output([r"../library", library_path, filename], cwd=dir_path)
+            proc = proc.decode("utf-8")
+        resp = jsonify({'message': proc})
         resp.status_code = 201
         return resp
-    else:
+    except subprocess.CalledProcessError as e:
+        resp = jsonify({'message': 'Command execution failed'})
+        resp.status_code = 500
+        return resp
+    except Exception as e:
         resp = jsonify({'message': 'There is an Error'})
         resp.status_code = 500
         return resp
