@@ -84,6 +84,11 @@ def validate_workflow(workflow_file, console):
                     label = label_tag.text.strip()
                     node_labels.append(label)
                     
+                    # reject shell metacharacters to prevent command injection (#251)
+                    if re.search(r'[;&|`$\'"()\\]', label):
+                        errors.append(f"Node '{label}' contains unsafe shell characters")
+                        continue
+
                     if ':' not in label:
                         warnings.append(f"Node '{label}' missing format 'ID:filename'")
                     else:
