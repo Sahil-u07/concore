@@ -13,11 +13,11 @@ if hasattr(sys, 'getwindowsversion'):
 
 try:
     iport = literal_eval(open("concore.iport").read())
-except:
+except Exception:
     iport = dict()
 try:
     oport = literal_eval(open("concore.oport").read())
-except:
+except Exception:
     oport = dict()
 
 
@@ -44,7 +44,7 @@ def read(port, name, initstr):
     try:
         infile = open(inpath+str(port)+"/"+name);
         ins = infile.read()
-    except:
+    except (OSError, IOError):
         ins = initstr
     while len(ins)==0:
         time.sleep(delay)
@@ -68,7 +68,7 @@ def write(port, name, val, delta=0):
                 outfile.write(str([simtime+delta]+val))
             else:
                 outfile.write(val)
-    except:
+    except (OSError, IOError):
         print("skipping"+outpath+str(port)+"/"+name);
 
 def initval(simtime_val):
