@@ -71,7 +71,7 @@ def validate_workflow(workflow_file, source_dir, console):
             info.append(f"Found {len(edges)} edge(s)")
 
         if not source_root.exists():
-            errors.append(f"Source directory not found: {source_root}")
+            warnings.append(f"Source directory not found: {source_root}")
         
         node_labels = []
         for node in nodes:
