@@ -79,6 +79,9 @@ Checks:
 - File references and naming conventions
 - ZMQ vs file-based communication
 
+**Options:**
+- `-s, --source <dir>` - Source directory (default: src)
+
 **Example:**
 ```bash
 concore validate workflow.graphml
