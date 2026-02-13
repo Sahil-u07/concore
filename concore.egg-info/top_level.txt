@@ -1,2 +1,0 @@
-concore_cli
-mkconcore
