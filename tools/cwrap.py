@@ -12,51 +12,51 @@ concore.delay = 0.02
 
 try:
     apikey=open(concore.inpath+'1/concore.apikey',newline=None).readline().rstrip()
-except:
+except (OSError, IOError):
     try: 
         #perhaps this should be removed for security
         apikey=open('./concore.apikey',newline=None).readline().rstrip()
-    except:
+    except (OSError, IOError):
         apikey = ''
 
 try:
     yuyu=open(concore.inpath+'1/concore.yuyu',newline=None).readline().rstrip()
-except:
+except (OSError, IOError):
     try: 
         yuyu=open('./concore.yuyu',newline=None).readline().rstrip()
-    except:
+    except (OSError, IOError):
         yuyu = 'yuyu'
 
 try:
     name1=open(concore.inpath+'1/concore.name1',newline=None).readline().rstrip()
-except:
+except (OSError, IOError):
     try:
         name1=open('./concore.name1',newline=None).readline().rstrip()
-    except:
+    except (OSError, IOError):
         name1 = 'u'
 
 try:
     name2=open(concore.inpath+'1/concore.name2',newline=None).readline().rstrip()
-except:
+except (OSError, IOError):
     try:
         name2=open('./concore.name2',newline=None).readline().rstrip()
-    except:
+    except (OSError, IOError):
         name2 = 'ym'
 
 try:
     init_simtime_u = open(concore.inpath+'1/concore.init1',newline=None).readline().rstrip()
-except:
+except (OSError, IOError):
     try:
         init_simtime_u = open('./concore.init1',newline=None).readline().rstrip()
-    except:
+    except (OSError, IOError):
         init_simtime_u = "[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
 
 try:
     init_simtime_ym = open(concore.inpath+'1/concore.init2',newline=None).readline().rstrip()
-except:
+except (OSError, IOError):
     try:
         init_simtime_ym = open('./concore.init2',newline=None).readline().rstrip()
-    except:
+    except (OSError, IOError):
         init_simtime_ym = "[0.0, 0.0, 0.0]"
 
 logging.debug(f"API Key: {apikey}")
@@ -92,7 +92,7 @@ while(concore.simtime<concore.maxtime):
     if len(r.text)!=0:
         try:
             t=literal_eval(r.text)[0]
-        except:
+        except Exception:
             logging.error(f"bad eval {r.text}")
     timeout_count = 0
     t1 = time.perf_counter()
@@ -104,7 +104,7 @@ while(concore.simtime<concore.maxtime):
         f = {'file1': open(concore.inpath+'1/'+name1, 'rb')}
         try:
             r = requests.post('http://www.controlcore.org/pm/'+yuyu+apikey+'&fetch='+name2, files=f,timeout=timeout_max)
-        except:
+        except Exception:
             logging.error("CW: bad request")
         timeout_count += 1
         if r.status_code!=200 or time.perf_counter()-t1 > 1.1*timeout_max: #timeout_count>100:
@@ -113,7 +113,7 @@ while(concore.simtime<concore.maxtime):
         if len(r.text)!=0:
             try:
                 t=literal_eval(r.text)[0]
-            except:
+            except Exception:
                 logging.error(f"bad eval {r.text}")
     oldt = t
     oldym = r.text
