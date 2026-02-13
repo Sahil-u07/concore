@@ -56,9 +56,11 @@ def stop_all(console):
             name = proc.info.get('name', 'unknown')
             
             if sys.platform == 'win32':
-                subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
-                             capture_output=True, 
-                             check=False)
+                result = subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
+                                      capture_output=True, 
+                                      check=False)
+                if result.returncode != 0:
+                    raise RuntimeError(f"taskkill failed with code {result.returncode}")
             else:
                 proc.terminate()
                 proc.wait(timeout=3)
