@@ -1,0 +1,2 @@
+[console_scripts]
+concore = concore_cli.cli:cli
