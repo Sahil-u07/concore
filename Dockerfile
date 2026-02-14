@@ -3,7 +3,7 @@ FROM eclipse-temurin:17-jdk-alpine
 WORKDIR /app
 
 # Only copy the JAR if it exists
-COPY ./target/concore-0.0.1-SNAPSHOT.jar /app/concore.jar
+COPY ./target/concore-*.jar /app/concore.jar
 
 # Ensure the JAR file is executable if present
 RUN [ -f /app/concore.jar ] && chmod +x /app/concore.jar || true
