@@ -14,7 +14,9 @@ concore_path = os.path.abspath(os.path.join(cur_path, '../../'))
 
 
 app = Flask(__name__)
-app.secret_key = "secret key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("FLASK_SECRET_KEY environment variable not set")
 
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -407,4 +409,6 @@ def openJupyter():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # In production, use:
+    # gunicorn -w 4 -b 0.0.0.0:5000 main:app
+    app.run(host="0.0.0.0", port=5000, debug=False)
