@@ -5,8 +5,9 @@ from rich.table import Table
 import re
 import xml.etree.ElementTree as ET
 
-def validate_workflow(workflow_file, console):
+def validate_workflow(workflow_file, source_dir, console):
     workflow_path = Path(workflow_file)
+    source_root = (workflow_path.parent / source_dir)
     
     console.print(f"[cyan]Validating:[/cyan] {workflow_path.name}")
     console.print()
@@ -15,31 +16,35 @@ def validate_workflow(workflow_file, console):
     warnings = []
     info = []
     
+    def finalize():
+        show_results(console, errors, warnings, info)
+        return len(errors) == 0
+
     try:
         with open(workflow_path, 'r') as f:
             content = f.read()
         
         if not content.strip():
             errors.append("File is empty")
-            return show_results(console, errors, warnings, info)
+            return finalize()
         
         # strict XML syntax check
         try:
             ET.fromstring(content)
         except ET.ParseError as e:
             errors.append(f"Invalid XML: {str(e)}")
-            return show_results(console, errors, warnings, info)
+            return finalize()
         
         try:
             soup = BeautifulSoup(content, 'xml')
         except Exception as e:
             errors.append(f"Invalid XML: {str(e)}")
-            return show_results(console, errors, warnings, info)
+            return finalize()
         
         root = soup.find('graphml')
         if not root:
             errors.append("Not a valid GraphML file - missing <graphml> root element")
-            return show_results(console, errors, warnings, info)
+            return finalize()
             
         # check the graph attributes
         graph = soup.find('graph')
@@ -64,6 +69,9 @@ def validate_workflow(workflow_file, console):
             warnings.append("No edges found in workflow")
         else:
             info.append(f"Found {len(edges)} edge(s)")
+
+        if not source_root.exists():
+            warnings.append(f"Source directory not found: {source_root}")
         
         node_labels = []
         for node in nodes:
@@ -101,6 +109,10 @@ def validate_workflow(workflow_file, console):
                                 errors.append(f"Node '{label}' has no filename")
                             elif not any(filename.endswith(ext) for ext in ['.py', '.cpp', '.m', '.v', '.java']):
                                 warnings.append(f"Node '{label}' has unusual file extension")
+                            elif source_root.exists():
+                                file_path = source_root / filename
+                                if not file_path.exists():
+                                    errors.append(f"Missing source file: {filename}")
                 else:
                     warnings.append(f"Node {node_id} has no label")
             except Exception as e:
@@ -143,12 +155,14 @@ def validate_workflow(workflow_file, console):
         if file_edges > 0:
             info.append(f"File-based edges: {file_edges}")
         
-        show_results(console, errors, warnings, info)
-        
+        return finalize()
+
     except FileNotFoundError:
         console.print(f"[red]Error:[/red] File not found: {workflow_path}")
+        return False
     except Exception as e:
         console.print(f"[red]Validation failed:[/red] {str(e)}")
+        return False
 
 def show_results(console, errors, warnings, info):
     if errors:
