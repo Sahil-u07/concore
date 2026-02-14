@@ -1,19 +1,17 @@
 import click
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich import print as rprint
-import sys
 import os
-from pathlib import Path
+import sys
 
 from .commands.init import init_project
 from .commands.run import run_workflow
 from .commands.validate import validate_workflow
 from .commands.status import show_status
 from .commands.stop import stop_all
+from .commands.inspect import inspect_workflow
 
 console = Console()
+DEFAULT_EXEC_TYPE = 'windows' if os.name == 'nt' else 'posix'
 
 @click.group()
 @click.version_option(version='1.0.0', prog_name='concore')
@@ -35,7 +33,7 @@ def init(name, template):
 @click.argument('workflow_file', type=click.Path(exists=True))
 @click.option('--source', '-s', default='src', help='Source directory')
 @click.option('--output', '-o', default='out', help='Output directory')
-@click.option('--type', '-t', default='windows', type=click.Choice(['windows', 'posix', 'docker']), help='Execution type')
+@click.option('--type', '-t', default=DEFAULT_EXEC_TYPE, type=click.Choice(['windows', 'posix', 'docker']), help='Execution type')
 @click.option('--auto-build', is_flag=True, help='Automatically run build after generation')
 def run(workflow_file, source, output, type, auto_build):
     """Run a concore workflow"""
@@ -54,6 +52,18 @@ def validate(workflow_file, source):
         ok = validate_workflow(workflow_file, source, console)
         if not ok:
             sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        sys.exit(1)
+
+@cli.command()
+@click.argument('workflow_file', type=click.Path(exists=True))
+@click.option('--source', '-s', default='src', help='Source directory')
+@click.option('--json', 'output_json', is_flag=True, help='Output in JSON format')
+def inspect(workflow_file, source, output_json):
+    """Inspect a workflow file and show its structure"""
+    try:
+        inspect_workflow(workflow_file, source, output_json, console)
     except Exception as e:
         console.print(f"[red]Error:[/red] {str(e)}")
         sys.exit(1)
