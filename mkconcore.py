@@ -93,6 +93,24 @@ def safe_name(value, context, allow_path=False):
         raise ValueError(f"Unsafe {context}: '{value}' contains illegal characters.")
     return value
 
+def safe_relpath(value, context):
+    """
+    Allow relative subpaths while blocking traversal and absolute/drive paths.
+    """
+    if not value:
+        raise ValueError(f"{context} cannot be empty")
+    normalized = value.replace("\\", "/")
+    safe_name(normalized, context, allow_path=True)
+    if normalized.startswith("/") or normalized.startswith("~"):
+        raise ValueError(f"Unsafe {context}: absolute paths are not allowed.")
+    if re.match(r"^[A-Za-z]:", normalized):
+        raise ValueError(f"Unsafe {context}: drive paths are not allowed.")
+    if ":" in normalized:
+        raise ValueError(f"Unsafe {context}: ':' is not allowed in relative paths.")
+    if any(part in ("", "..") for part in normalized.split("/")):
+        raise ValueError(f"Unsafe {context}: invalid path segment.")
+    return normalized
+
 MKCONCORE_VER = "22-09-18"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -276,7 +294,8 @@ for node in nodes_text:
                 if ':' in node_label:
                     container_part, source_part = node_label.split(':', 1)
                     safe_name(container_part, f"Node container name '{container_part}'")
-                    safe_name(source_part, f"Node source file '{source_part}'")
+                    source_part = safe_relpath(source_part, f"Node source file '{source_part}'")
+                    node_label = f"{container_part}:{source_part}"
                 else:
                     safe_name(node_label, f"Node label '{node_label}'")
                     # Explicitly reject incorrect format to prevent later crashes and ambiguity
@@ -472,6 +491,9 @@ for node_id_key in list(nodes_dict.keys()):
         dockername, langext = sourcecode, ""
     
     script_target_path = os.path.join(outdir, "src", sourcecode)
+    script_target_parent = os.path.dirname(script_target_path)
+    if script_target_parent:
+        os.makedirs(script_target_parent, exist_ok=True)
 
     # If the script was specialized, it's already in outdir/src. If not, copy from sourcedir.
     if node_id_key not in node_edge_params:
@@ -666,9 +688,14 @@ for node_label, ports in node_port_mappings.items():
         containername, sourcecode = node_label.split(':', 1)
         if not sourcecode or "." not in sourcecode: continue
         dockername = os.path.splitext(sourcecode)[0]
-        with open(os.path.join(outdir, "src", f"{dockername}.iport"), "w") as fport:
+        iport_path = os.path.join(outdir, "src", f"{dockername}.iport")
+        oport_path = os.path.join(outdir, "src", f"{dockername}.oport")
+        iport_parent = os.path.dirname(iport_path)
+        if iport_parent:
+            os.makedirs(iport_parent, exist_ok=True)
+        with open(iport_path, "w") as fport:
             fport.write(str(ports['iport']).replace("'" + prefixedgenode, "'"))
-        with open(os.path.join(outdir, "src", f"{dockername}.oport"), "w") as fport:
+        with open(oport_path, "w") as fport:
             fport.write(str(ports['oport']).replace("'" + prefixedgenode, "'"))
     except ValueError:
         continue
@@ -680,7 +707,8 @@ if (concoretype=="docker"):
         containername,sourcecode = nodes_dict[node].split(':')
         if len(sourcecode)!=0 and sourcecode.find(".")!=-1: #3/28/21
             dockername,langext = sourcecode.split(".")
-            if not os.path.exists(outdir+"/src/Dockerfile."+dockername): # 3/30/21
+            dockerfile_path = os.path.join(outdir, "src", f"Dockerfile.{dockername}")
+            if not os.path.exists(dockerfile_path): # 3/30/21
                 try:
                     if langext=="py":
                         src_path = CONCOREPATH+"/Dockerfile.py"
@@ -702,7 +730,10 @@ if (concoretype=="docker"):
                 except:
                     logging.error(f"{CONCOREPATH} is not correct path to concore")
                     quit()
-                with open(outdir+"/src/Dockerfile."+dockername,"w") as fcopy:
+                dockerfile_parent = os.path.dirname(dockerfile_path)
+                if dockerfile_parent:
+                    os.makedirs(dockerfile_parent, exist_ok=True)
+                with open(dockerfile_path,"w") as fcopy:
                     fcopy.write(source_content)
                     if langext=="py":
                         fcopy.write('CMD ["python", "-i", "'+sourcecode+'"]\n')
@@ -955,6 +986,12 @@ for node in nodes_dict:
             quit()
         dockername,langext = sourcecode.split(".")
         fbuild.write('mkdir '+containername+"\n")
+        source_subdir = os.path.dirname(sourcecode).replace("\\", "/")
+        if source_subdir:
+            if concoretype == "windows":
+                fbuild.write("mkdir .\\"+containername+"\\"+source_subdir.replace("/", "\\")+"\n")
+            else:
+                fbuild.write("mkdir -p ./"+containername+"/"+source_subdir+"\n")
         if concoretype == "windows":
             fbuild.write("copy .\\src\\"+sourcecode+" .\\"+containername+"\\"+sourcecode+"\n")
             if langext == "py":
