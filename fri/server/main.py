@@ -362,7 +362,7 @@ def download(dir):
 
     try:
         return send_from_directory(directory_name, safe_path, as_attachment=True)
-    except:
+    except Exception:
         resp = jsonify({'message': 'file not found'})
         resp.status_code = 400
         return resp
