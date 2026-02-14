@@ -47,7 +47,9 @@ while concore.simtime < concore.maxtime:
     if 'U2' in concore.oport: 
         concore.write(concore.oport['U2'], "u", u_data_values)
 
-    old_concore_simtime = concore.simtime
+    # Take a numeric snapshot of the current simulation time to avoid
+    # inadvertently sharing a reference with concore.simtime.
+    old_concore_simtime = float(concore.simtime)
     while concore.unchanged() or concore.simtime <= old_concore_simtime:
         # Assuming concore.iport['Y2'] is a file port (e.g., from pmpymax.py)
         ym_data_values = concore.read(concore.iport['Y2'], "ym", init_simtime_ym_str)
