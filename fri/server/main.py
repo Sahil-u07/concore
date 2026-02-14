@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 from werkzeug.utils import secure_filename
 import xml.etree.ElementTree as ET
 import os
@@ -330,15 +330,39 @@ def contribute():
 def download(dir):
     download_file = request.args.get('fetch')
     sub_folder = request.args.get('fetchDir')
+
+    if not download_file:
+        abort(400, description="Missing file parameter")
+
+    # Normalize the requested file path
+    safe_path = os.path.normpath(download_file)
+
+    # Prevent absolute paths
+    if os.path.isabs(safe_path):
+        abort(400, description="Invalid file path")
+
+    # Prevent directory traversal
+    if ".." in safe_path.split(os.sep):
+        abort(400, description="Directory traversal attempt detected")
+
     dirname = secure_filename(dir) + "/" + secure_filename(sub_folder)
-    directory_name = os.path.abspath(os.path.join(concore_path, dirname))
+    concore_real = os.path.realpath(concore_path)
+    directory_name = os.path.realpath(os.path.join(concore_real, dirname))
+    if not directory_name.startswith(concore_real + os.sep):
+        abort(403, description="Access denied")
     if not os.path.exists(directory_name):
         resp = jsonify({'message': 'Directory not found'})
         resp.status_code = 400
         return resp
+
+    # Ensure final resolved path is within the intended directory, resolving symlinks
+    full_path = os.path.realpath(os.path.join(directory_name, safe_path))
+    if not full_path.startswith(directory_name + os.sep):
+        abort(403, description="Access denied")
+
     try:
-        return send_from_directory(directory_name, download_file, as_attachment=True)
-    except:
+        return send_from_directory(directory_name, safe_path, as_attachment=True)
+    except Exception:
         resp = jsonify({'message': 'file not found'})
         resp.status_code = 400
         return resp
