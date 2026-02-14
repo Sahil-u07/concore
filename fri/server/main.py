@@ -346,15 +346,18 @@ def download(dir):
         abort(400, description="Directory traversal attempt detected")
 
     dirname = secure_filename(dir) + "/" + secure_filename(sub_folder)
-    directory_name = os.path.abspath(os.path.join(concore_path, dirname))
+    concore_real = os.path.realpath(concore_path)
+    directory_name = os.path.realpath(os.path.join(concore_real, dirname))
+    if not directory_name.startswith(concore_real + os.sep):
+        abort(403, description="Access denied")
     if not os.path.exists(directory_name):
         resp = jsonify({'message': 'Directory not found'})
         resp.status_code = 400
         return resp
 
-    # Ensure final resolved path is within the intended directory
-    full_path = os.path.abspath(os.path.join(directory_name, safe_path))
-    if not full_path.startswith(os.path.abspath(directory_name) + os.sep):
+    # Ensure final resolved path is within the intended directory, resolving symlinks
+    full_path = os.path.realpath(os.path.join(directory_name, safe_path))
+    if not full_path.startswith(directory_name + os.sep):
         abort(403, description="Access denied")
 
     try:
