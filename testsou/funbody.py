@@ -2,7 +2,6 @@ import concore
 print("funbody")
 
 concore.delay = 0.07
-concore.delay = 0.07
 concore.inpath = concore.inpath
 concore.outpath = concore.outpath
 concore.simtime = 0
