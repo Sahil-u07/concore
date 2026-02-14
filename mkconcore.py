@@ -77,12 +77,27 @@ import shlex  # Added for POSIX shell escaping
 def safe_name(value, context):
     """
     Validates that the input string does not contain characters dangerous 
-    for filesystem paths or shell command injection.
+    for simple names (labels, filenames without paths).
+    Use safe_path() for validating directory/file paths.
     """
     if not value:
         raise ValueError(f"{context} cannot be empty")
     # blocks path traversal (/, \), control characters, and shell metacharacters (*, ?, <, >, |, ;, &, $, `, ', ", (, ))
     if re.search(r'[\x00-\x1F\x7F\\/:*?"<>|;&`$\'()]', value):
+        raise ValueError(f"Unsafe {context}: '{value}' contains illegal characters.")
+    return value
+
+def safe_path(value, context):
+    """
+    Validates that a path string does not contain characters dangerous for shell command injection.
+    Unlike safe_name(), this allows path separators (/ and \) but still blocks dangerous shell metacharacters.
+    """
+    if not value:
+        raise ValueError(f"{context} cannot be empty")
+    # Allow path separators but block control characters and shell metacharacters
+    # Blocks: control chars, *, ?, <, >, |, ;, &, $, `, ', ", (, )
+    # Allows: /, \, -, _, ., alphanumeric, spaces, :
+    if re.search(r'[\x00-\x1F\x7F*?"<>|;&`$\'()]', value):
         raise ValueError(f"Unsafe {context}: '{value}' contains illegal characters.")
     return value
 
@@ -142,8 +157,9 @@ prefixedgenode = ""
 sourcedir = sys.argv[2]
 outdir = sys.argv[3]
 
-# Validate outdir argument
-safe_name(outdir, "Output directory argument")
+# Validate path arguments
+safe_path(outdir, "Output directory argument")
+safe_path(sourcedir, "Source directory argument")
 
 if not os.path.isdir(sourcedir):
     logging.error(f"{sourcedir} does not exist")
