@@ -97,8 +97,8 @@ while(concore.simtime<concore.maxtime):
     with open(concore.inpath+'1/'+name1, 'rb') as f1:
         f = {'file1': f1}
         logging.debug(f"CW: before post u={u}")
-        logging.debug(f'http://www.controlcore.org/pm/{yuyu}{apikey}&fetch={name2}')
-        r = requests.post('http://www.controlcore.org/pm/'+yuyu+apikey+'&fetch='+name2, files=f,timeout=timeout_max)
+        logging.debug(f'https://www.controlcore.org/pm/{yuyu}{apikey}&fetch={name2}')
+        r = requests.post('https://www.controlcore.org/pm/'+yuyu+apikey+'&fetch='+name2, files=f,timeout=timeout_max)
     if r.status_code!=200:
         logging.error(f"bad POST request {r.status_code}")
         quit()
@@ -117,7 +117,7 @@ while(concore.simtime<concore.maxtime):
         with open(concore.inpath+'1/'+name1, 'rb') as f1:
             f = {'file1': f1}
             try:
-                r = requests.post('http://www.controlcore.org/pm/'+yuyu+apikey+'&fetch='+name2, files=f,timeout=timeout_max)
+                r = requests.post('https://www.controlcore.org/pm/'+yuyu+apikey+'&fetch='+name2, files=f,timeout=timeout_max)
             except Exception:
                 logging.error("CW: bad request")
         timeout_count += 1
