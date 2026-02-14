@@ -25,10 +25,17 @@ SAMPLE_GRAPHML = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 SAMPLE_PYTHON = '''import concore
 
-while not concore.concore_unchanged():
-    data = concore.concore_read()
-    result = data * 2
-    concore.concore_write(result)
+concore.default_maxtime(100)
+concore.delay = 0.02
+
+init_simtime_val = "[0.0, 0.0]"
+val = concore.initval(init_simtime_val)
+
+while(concore.simtime<concore.maxtime):
+    while concore.unchanged():
+        val = concore.read(1,"data",init_simtime_val)
+    result = [v * 2 for v in val]
+    concore.write(1,"result",result,delta=0)
 '''
 
 README_TEMPLATE = '''# {project_name}

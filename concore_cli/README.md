@@ -85,6 +85,9 @@ Checks:
 - Circular dependencies (warns for control loops)
 - Edge connectivity
 
+**Options:**
+- `-s, --source <dir>` - Source directory (default: src)
+
 **Example:**
 ```bash
 concore validate workflow.graphml

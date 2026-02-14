@@ -5,12 +5,6 @@ import subprocess
 import logging
 import json
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
 def run_specialization_script(template_script_path, output_dir, edge_params_list, python_exe, copy_script_path):
     """
     Calls the copy script to generate a specialized version of a node's script.
@@ -149,6 +143,12 @@ def create_modified_script(template_script_path, output_dir, edge_params_json_st
         sys.exit(1)
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
     if len(sys.argv) != 4:
         print("\nUsage: python3 copy_with_port_portname.py <TEMPLATE_SCRIPT_PATH> <OUTPUT_DIRECTORY> '<JSON_PARAMETERS>'\n")
         print("Example JSON: '[{\"port\": \"2355\", \"port_name\": \"FUNBODY_REP_1\", \"source_node_label\": \"nodeA\", \"target_node_label\": \"nodeB\"}]'")

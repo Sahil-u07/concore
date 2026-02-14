@@ -112,6 +112,23 @@ class TestGraphValidation(unittest.TestCase):
         self.assertIn('Validation failed', result.output)
         self.assertIn('has no filename', result.output)
 
+    def test_validate_unsafe_node_label(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0;rm -rf /:script.py</y:NodeLabel></data>
+                </node>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('injection.graphml', content)
+
+        result = self.runner.invoke(cli, ['validate', filepath])
+
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('unsafe shell characters', result.output)
+
     def test_validate_valid_graph(self):
         content = '''
         <graphml xmlns:y="http://www.yworks.com/xml/graphml">

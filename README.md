@@ -57,6 +57,26 @@ concore stop
 
 For detailed CLI documentation, see [concore_cli/README.md](concore_cli/README.md).
 
+## Configuration
+
+_concore_ supports customization through configuration files in the `CONCOREPATH` directory (defaults to the _concore_ installation directory):
+
+- **concore.tools** - Override tool paths (one per line, `KEY=value` format):
+  ```
+  CPPEXE=/usr/local/bin/g++-12
+  PYTHONEXE=/usr/bin/python3.11
+  VEXE=/opt/iverilog/bin/iverilog
+  OCTAVEEXE=/snap/bin/octave
+  ```
+  Supported keys: `CPPWIN`, `CPPEXE`, `VWIN`, `VEXE`, `PYTHONEXE`, `PYTHONWIN`, `MATLABEXE`, `MATLABWIN`, `OCTAVEEXE`, `OCTAVEWIN`
+
+- **concore.octave** - Treat `.m` files as Octave instead of MATLAB (presence = enabled)
+- **concore.mcr** - MATLAB Compiler Runtime path (single line)
+- **concore.sudo** - Docker command override (e.g., `docker` instead of `sudo docker`)
+- **concore.repo** - Docker repository override
+
+Tool paths can also be set via environment variables (e.g., `CONCORE_CPPEXE=/usr/bin/g++`). Priority: config file > env var > defaults.
+
 For a detailed and more scientific documentation, please read our extensive [open-access research paper on CONTROL-CORE](https://doi.org/10.1109/ACCESS.2022.3161471). This paper has a complete discussion on the CONTROL-CORE architecture and deployment, together with the commands to execute the studies in different programming languages and programming environments (Ubuntu, Windows, MacOS, Docker, and distributed execution).
 
 

@@ -31,6 +31,7 @@ def stop_all(console):
                 if is_concore:
                     processes_to_kill.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # Process already exited or access denied; continue
                 continue
     
     except Exception as e:
@@ -55,9 +56,11 @@ def stop_all(console):
             name = proc.info.get('name', 'unknown')
             
             if sys.platform == 'win32':
-                subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
-                             capture_output=True, 
-                             check=False)
+                result = subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
+                                      capture_output=True, 
+                                      check=False)
+                if result.returncode != 0:
+                    raise RuntimeError(f"taskkill failed with code {result.returncode}")
             else:
                 proc.terminate()
                 proc.wait(timeout=3)

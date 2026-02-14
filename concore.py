@@ -7,6 +7,8 @@ import sys
 import re
 import zmq
 import numpy as np
+import signal
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
@@ -81,6 +83,7 @@ class ZeroMQPort:
 
 # Global ZeroMQ ports registry
 zmq_ports = {}
+_cleanup_in_progress = False
 
 def init_zmq_port(port_name, port_type, address, socket_type_str):
     """
@@ -107,14 +110,45 @@ def init_zmq_port(port_name, port_type, address, socket_type_str):
         logging.error(f"An unexpected error occurred during ZMQ port initialization for {port_name}: {e}")
 
 def terminate_zmq():
-    for port in zmq_ports.values():
+    """Clean up all ZMQ sockets and contexts before exit."""
+    global _cleanup_in_progress
+    
+    if _cleanup_in_progress:
+        return  # Already cleaning up, prevent reentrant calls
+    
+    if not zmq_ports:
+        return  # No ports to clean up
+    
+    _cleanup_in_progress = True
+    print("\nCleaning up ZMQ resources...")
+    for port_name, port in zmq_ports.items():
         try:
             port.socket.close()
             port.context.term()
+            print(f"Closed ZMQ port: {port_name}")
         except Exception as e:
             logging.error(f"Error while terminating ZMQ port {port.address}: {e}")
+    zmq_ports.clear()
+    _cleanup_in_progress = False
 
+def signal_handler(sig, frame):
+    """Handle interrupt signals gracefully."""
+    print(f"\nReceived signal {sig}, shutting down gracefully...")
+    # Prevent terminate_zmq from being called twice: once here and once via atexit
+    try:
+        atexit.unregister(terminate_zmq)
+    except Exception:
+        # If unregister fails for any reason, proceed with explicit cleanup anyway
+        pass
+    terminate_zmq()
+    sys.exit(0)
+
+# Register cleanup handlers
 atexit.register(terminate_zmq)
+signal.signal(signal.SIGINT, signal_handler)   # Handle Ctrl+C
+if not hasattr(sys, 'getwindowsversion'):
+    signal.signal(signal.SIGTERM, signal_handler)  # Handle termination (Unix only)
+
 # --- ZeroMQ Integration End ---
 
 
@@ -264,6 +298,12 @@ def read(port_identifier, name, initstr_val):
         zmq_p = zmq_ports[port_identifier]
         try:
             message = zmq_p.recv_json_with_retry()
+            # Strip simtime prefix if present (mirroring file-based read behavior)
+            if isinstance(message, list) and len(message) > 0:
+                first_element = message[0]
+                if isinstance(first_element, (int, float)):
+                    simtime = max(simtime, first_element)
+                    return message[1:]
             return message
         except zmq.error.ZMQError as e:
             logging.error(f"ZMQ read error on port {port_identifier} (name: {name}): {e}. Returning default.")
@@ -331,7 +371,7 @@ def read(port_identifier, name, initstr_val):
 def write(port_identifier, name, val, delta=0):
     """
     Write data either to ZMQ port or file.
-    `val` must be list (with simtime prefix) or string.
+    `val` is the data payload (list or string); write() prepends [simtime + delta] internally.
     """
     global simtime
 
@@ -339,11 +379,20 @@ def write(port_identifier, name, val, delta=0):
     if isinstance(port_identifier, str) and port_identifier in zmq_ports:
         zmq_p = zmq_ports[port_identifier]
         try:
-            zmq_p.send_json_with_retry(val)
+            # Keep ZMQ payloads JSON-serializable by normalizing numpy types.
+            zmq_val = convert_numpy_to_python(val)
+            if isinstance(zmq_val, list):
+                # Prepend simtime to match file-based write behavior
+                payload = [simtime + delta] + zmq_val
+                zmq_p.send_json_with_retry(payload)
+                simtime += delta
+            else:
+                zmq_p.send_json_with_retry(zmq_val)
         except zmq.error.ZMQError as e:
             logging.error(f"ZMQ write error on port {port_identifier} (name: {name}): {e}")
         except Exception as e:
             logging.error(f"Unexpected error during ZMQ write on port {port_identifier} (name: {name}): {e}")
+        return
     
     # Case 2: File-based port
     try:
