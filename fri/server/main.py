@@ -14,7 +14,15 @@ concore_path = os.path.abspath(os.path.join(cur_path, '../../'))
 
 
 app = Flask(__name__)
-app.secret_key = "secret key"
+secret_key = os.environ.get("FLASK_SECRET_KEY")
+if not secret_key:
+    # In production, require an explicit FLASK_SECRET_KEY to be set.
+    # For local development and tests, fall back to a per-process random key
+    # so that importing this module does not fail hard.
+    if os.environ.get("FLASK_ENV") == "production":
+        raise RuntimeError("FLASK_SECRET_KEY environment variable not set in production")
+    secret_key = os.urandom(32)
+app.secret_key = secret_key
 
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -431,4 +439,6 @@ def openJupyter():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # In production, use:
+    # gunicorn -w 4 -b 0.0.0.0:5000 fri.server.main:app
+    app.run(host="0.0.0.0", port=5000, debug=False)
