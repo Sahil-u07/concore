@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import time
 GENERATE_PLOT = 0
 concore.delay = 0.002
-concore.delay = 0.002
 concore.simtime = 0
 
 fout=open(concore.outpath+'1/history.txt','w')
