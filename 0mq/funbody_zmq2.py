@@ -14,7 +14,6 @@ concore.init_zmq_port(
 
 # Standard concore initializations
 concore.delay = 0.07         
-concore.delay = 0.07        
 concore.inpath = concore.inpath
 concore.outpath = concore.outpath
 concore.simtime = 0         
