@@ -90,7 +90,7 @@ def safe_name(value, context):
 def safe_path(value, context):
     """
     Validates that a path string does not contain characters dangerous for shell command injection.
-    Unlike safe_name(), this allows path separators (/ and \) but still blocks dangerous shell metacharacters.
+    Unlike safe_name(), this allows path separators (/ and \\) but still blocks dangerous shell metacharacters.
     """
     if not value:
         raise ValueError(f"{context} cannot be empty")
