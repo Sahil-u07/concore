@@ -97,6 +97,19 @@ MKCONCORE_VER = "22-09-18"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+def _load_tool_config(filepath):
+    tools = {}
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if v:
+                tools[k] = v
+    return tools
+
 def _resolve_concore_path():
     script_concore = os.path.join(SCRIPT_DIR, "concore.py")
     if os.path.exists(script_concore):
@@ -109,16 +122,16 @@ def _resolve_concore_path():
 GRAPHML_FILE = sys.argv[1]
 TRIMMED_LOGS = True
 CONCOREPATH = _resolve_concore_path()
-CPPWIN    = "g++"        #Windows C++  6/22/21
-CPPEXE    = "g++"        #Ubuntu/macOS C++  6/22/21
-VWIN      = "iverilog"   #Windows verilog  6/25/21
-VEXE      = "iverilog"   #Ubuntu/macOS verilog  6/25/21
-PYTHONEXE = "python3"    #Ubuntu/macOS python3
-PYTHONWIN = "python"     #Windows python3
-MATLABEXE = "matlab"     #Ubuntu/macOS matlab 
-MATLABWIN = "matlab"     #Windows matlab 
-OCTAVEEXE = "octave"     #Ubuntu/macOS octave
-OCTAVEWIN = "octave"     #Windows octave
+CPPWIN    = os.environ.get("CONCORE_CPPWIN", "g++")          #Windows C++  6/22/21
+CPPEXE    = os.environ.get("CONCORE_CPPEXE", "g++")          #Ubuntu/macOS C++  6/22/21
+VWIN      = os.environ.get("CONCORE_VWIN", "iverilog")       #Windows verilog  6/25/21
+VEXE      = os.environ.get("CONCORE_VEXE", "iverilog")       #Ubuntu/macOS verilog  6/25/21
+PYTHONEXE = os.environ.get("CONCORE_PYTHONEXE", "python3")   #Ubuntu/macOS python3
+PYTHONWIN = os.environ.get("CONCORE_PYTHONWIN", "python")    #Windows python3
+MATLABEXE = os.environ.get("CONCORE_MATLABEXE", "matlab")    #Ubuntu/macOS matlab
+MATLABWIN = os.environ.get("CONCORE_MATLABWIN", "matlab")    #Windows matlab
+OCTAVEEXE = os.environ.get("CONCORE_OCTAVEEXE", "octave")    #Ubuntu/macOS octave
+OCTAVEWIN = os.environ.get("CONCORE_OCTAVEWIN", "octave")    #Windows octave
 M_IS_OCTAVE = False      #treat .m as octave
 MCRPATH  = "~/MATLAB/R2021a" #path to local Ubunta Matlab Compiler Runtime
 DOCKEREXE = "sudo docker"#assume simple docker install
@@ -147,6 +160,18 @@ if os.path.exists(CONCOREPATH+"/concore.repo"): # 12/04/21
     with open(CONCOREPATH+"/concore.repo", "r") as f:
         DOCKEREPO = f.readline().strip() #docker id for repo
 
+if os.path.exists(CONCOREPATH+"/concore.tools"):
+    _tools = _load_tool_config(CONCOREPATH+"/concore.tools")
+    CPPWIN    = _tools.get("CPPWIN", CPPWIN)
+    CPPEXE    = _tools.get("CPPEXE", CPPEXE)
+    VWIN      = _tools.get("VWIN", VWIN)
+    VEXE      = _tools.get("VEXE", VEXE)
+    PYTHONEXE = _tools.get("PYTHONEXE", PYTHONEXE)
+    PYTHONWIN = _tools.get("PYTHONWIN", PYTHONWIN)
+    MATLABEXE = _tools.get("MATLABEXE", MATLABEXE)
+    MATLABWIN = _tools.get("MATLABWIN", MATLABWIN)
+    OCTAVEEXE = _tools.get("OCTAVEEXE", OCTAVEEXE)
+    OCTAVEWIN = _tools.get("OCTAVEWIN", OCTAVEWIN)
 
 prefixedgenode = ""
 sourcedir = sys.argv[2]
