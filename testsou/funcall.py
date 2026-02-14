@@ -16,7 +16,7 @@ while(concore.simtime<concore.maxtime):
     concore.write(concore.oport['U1'],"u",u)
     print(u)
     old2 = concore.simtime
-    while concore.unchanged() or concore.simtime <= old2:
+    while concore.unchanged() and concore.simtime <= old2:
         ym = concore.read(concore.iport['Y1'],"ym",init_simtime_ym)
     concore.write(concore.oport['Y'],"ym",ym)
     print("funbody u="+str(u)+" ym="+str(ym)+" time="+str(concore.simtime))
