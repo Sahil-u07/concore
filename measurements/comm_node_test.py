@@ -4,8 +4,6 @@ import sys
 
 # --- Script Configuration ---
 concore.delay = 0.07
-concore.inpath = concore.inpath
-concore.outpath = concore.outpath
 concore.simtime = 0
 concore.default_maxtime(100) # This will be ignored by the new logic
 init_simtime_u = "[0.0, 0.0, 0.0]"
@@ -41,7 +39,7 @@ while curr < max_value and iteration < iteration_limit:
         break
 
     # 3. Wait for a message from the 'Y1' channel
-    old2 = concore.simtime
+    old2 = float(concore.simtime)
     while concore.unchanged() or concore.simtime <= old2:
         ym = concore.read(concore.iport['Y1'], "ym", init_simtime_ym)
         

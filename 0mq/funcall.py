@@ -3,9 +3,6 @@ from osparc_control import PairedTransmitter
 print("funcall 0mq")
 
 concore.delay = 0.07
-concore.delay = 0.07
-concore.inpath = concore.inpath
-concore.outpath = concore.outpath
 concore.simtime = 0
 concore.default_maxtime(100)
 init_simtime_u = "[0.0, 0.0, 0.0]"

@@ -15,9 +15,6 @@ concore.init_zmq_port(
 
 # Standard concore initializations
 concore.delay = 0.07         
-concore.delay = 0.07        
-concore.inpath = concore.inpath
-concore.outpath = concore.outpath
 concore.simtime = 0         
 concore.default_maxtime(100) 
 init_simtime_u_str = "[0.0, 0.0, 0.0]"
@@ -49,7 +46,7 @@ while concore.simtime < concore.maxtime:
     if 'U2' in concore.oport: 
         concore.write(concore.oport['U2'], "u", u_data_values)
 
-    old_concore_simtime = concore.simtime
+    old_concore_simtime = float(concore.simtime)
     while concore.unchanged() or concore.simtime <= old_concore_simtime:
         # Assuming concore.iport['Y2'] is a file port (e.g., from pmpymax.py)
         ym_data_values = concore.read(concore.iport['Y2'], "ym", init_simtime_ym_str)

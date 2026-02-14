@@ -2,7 +2,6 @@ import concore
 print("funcall")
 
 concore.delay = 0.07
-concore.delay = 0.07
 concore.simtime = 0
 concore.default_maxtime(100)
 init_simtime_u = "[0.0, 0.0, 0.0]"
@@ -15,7 +14,7 @@ while(concore.simtime<concore.maxtime):
         u = concore.read(concore.iport['U'],"u",init_simtime_u)
     concore.write(concore.oport['U1'],"u",u)
     print(u)
-    old2 = concore.simtime
+    old2 = float(concore.simtime)
     while concore.unchanged() and concore.simtime <= old2:
         ym = concore.read(concore.iport['Y1'],"ym",init_simtime_ym)
     concore.write(concore.oport['Y'],"ym",ym)

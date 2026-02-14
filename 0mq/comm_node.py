@@ -1,7 +1,6 @@
 import concore
 
 concore.delay = 0.07
-concore.delay = 0.07
 concore.simtime = 0
 concore.default_maxtime(100)
 init_simtime_u = "[0.0, 0.0, 0.0]"

@@ -15,7 +15,6 @@ concore.init_zmq_port(
 
 # Standard concore initializations
 concore.delay = 0.07
-concore.delay = 0.07
 concore.simtime = 0
 concore.default_maxtime(100) # Recommend increasing this for more data points, e.g., 1000
 init_simtime_u_str = "[0.0, 0.0, 0.0]"

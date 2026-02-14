@@ -3,9 +3,6 @@ import numpy as np
 import time
 
 concore.delay = 0.005
-concore.delay = 0.005
-concore.inpath = concore.inpath
-concore.outpath = concore.outpath
 concore.simtime = 0
 concore.default_maxtime(150)
 init_simtime_u = "[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
