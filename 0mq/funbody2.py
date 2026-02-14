@@ -50,8 +50,8 @@ while(concore.simtime<concore.maxtime):
         u = u[1:] 
         concore.write(concore.oport['U2'],"u",u)
         print(u)
-        old2 = concore.simtime
-        while concore.unchanged() or concore.simtime <= old2:
+        old2 = float(concore.simtime)
+        while concore.simtime <= old2:
             ym = concore.read(concore.iport['Y2'],"ym",init_simtime_ym)
         ym = [concore.simtime]+ym
         print(f"Replying to {command.action} with {ym}")
