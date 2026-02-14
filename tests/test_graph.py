@@ -163,7 +163,7 @@ class TestGraphValidation(unittest.TestCase):
         result = self.runner.invoke(cli, ['validate', filepath, '--source', str(source_dir)])
         
         self.assertIn('Validation failed', result.output)
-        self.assertIn('Source file not found: missing.py', result.output)
+        self.assertIn('Missing source file', result.output)
     
     def test_validate_with_existing_source_file(self):
         content = '''
