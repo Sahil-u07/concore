@@ -145,6 +145,165 @@ class TestGraphValidation(unittest.TestCase):
         
         self.assertIn('Validation passed', result.output)
         self.assertIn('Workflow is valid', result.output)
+    
+    def test_validate_missing_source_file(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:missing.py</y:NodeLabel></data>
+                </node>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('workflow.graphml', content)
+        source_dir = Path(self.temp_dir) / 'src'
+        source_dir.mkdir()
+        
+        result = self.runner.invoke(cli, ['validate', filepath, '--source', str(source_dir)])
+        
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('Missing source file', result.output)
+    
+    def test_validate_with_existing_source_file(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:exists.py</y:NodeLabel></data>
+                </node>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('workflow.graphml', content)
+        source_dir = Path(self.temp_dir) / 'src'
+        source_dir.mkdir()
+        (source_dir / 'exists.py').write_text('print("hello")')
+        
+        result = self.runner.invoke(cli, ['validate', filepath, '--source', str(source_dir)])
+        
+        self.assertIn('Validation passed', result.output)
+    
+    def test_validate_zmq_port_conflict(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:script1.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:script2.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>0x1234_portA</y:EdgeLabel></data>
+                </edge>
+                <edge source="n1" target="n0">
+                    <data key="d1"><y:EdgeLabel>0x1234_portB</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('conflict.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('Port conflict', result.output)
+    
+    def test_validate_reserved_port(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:script1.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:script2.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>0x50_data</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('reserved.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('Port 80', result.output)
+        self.assertIn('reserved range', result.output)
+    
+    def test_validate_cycle_detection(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:controller.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:plant.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>control_signal</y:EdgeLabel></data>
+                </edge>
+                <edge source="n1" target="n0">
+                    <data key="d1"><y:EdgeLabel>sensor_data</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('cycle.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('cycles', result.output)
+        self.assertIn('control loops', result.output)
+    
+    def test_validate_port_zero(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:script1.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:script2.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>0x0_invalid</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('port_zero.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('must be at least 1', result.output)
+    
+    def test_validate_port_exceeds_maximum(self):
+        content = '''
+        <graphml xmlns:y="http://www.yworks.com/xml/graphml">
+            <graph id="G" edgedefault="directed">
+                <node id="n0">
+                    <data key="d0"><y:NodeLabel>n0:script1.py</y:NodeLabel></data>
+                </node>
+                <node id="n1">
+                    <data key="d0"><y:NodeLabel>n1:script2.py</y:NodeLabel></data>
+                </node>
+                <edge source="n0" target="n1">
+                    <data key="d1"><y:EdgeLabel>0x10000_toobig</y:EdgeLabel></data>
+                </edge>
+            </graph>
+        </graphml>
+        '''
+        filepath = self.create_graph_file('port_max.graphml', content)
+        
+        result = self.runner.invoke(cli, ['validate', filepath])
+        
+        self.assertIn('Validation failed', result.output)
+        self.assertIn('exceeds maximum (65535)', result.output)
 
 if __name__ == '__main__':
     unittest.main()

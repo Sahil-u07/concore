@@ -72,12 +72,18 @@ concore run workflow.graphml --source ./src --output ./build --auto-build
 
 Validates a GraphML workflow file before running.
 
+**Options:**
+- `-s, --source <dir>` - Source directory to verify file references exist
+
 Checks:
 - Valid XML structure
 - GraphML format compliance
 - Node and edge definitions
 - File references and naming conventions
-- ZMQ vs file-based communication
+- Source file existence (when --source provided)
+- ZMQ port conflicts and reserved ports
+- Circular dependencies (warns for control loops)
+- Edge connectivity
 
 **Options:**
 - `-s, --source <dir>` - Source directory (default: src)
@@ -85,6 +91,7 @@ Checks:
 **Example:**
 ```bash
 concore validate workflow.graphml
+concore validate workflow.graphml --source ./src
 ```
 
 ### `concore status`
