@@ -353,17 +353,14 @@ private:
                     ostringstream ss;
                     ss << infile.rdbuf(); // reading data
                     ins = ss.str();
-                    retrycount++;
                     infile.close();
                 }
                 else{
-                    retrycount++;
                     throw 505;
                 }
             }
-            //observed retry count in C++ from various tests is approx 80.
             catch(...){
-                cout<<"Read error";
+                cerr << "Error reading " << inpath << port << "/" << name << " (retry " << retry << ")" << endl;
             }
             retry++;
         }
@@ -416,16 +413,13 @@ private:
                 if(shmId_get != -1) {
                     std::string message(sharedData_get, strnlen(sharedData_get, 256));
                     ins = message;
-                    retrycount++;
                 }
                 else{
-                    retrycount++;
                     throw 505;
                 }
             }
-            //observed retry count in C++ from various tests is approx 80.
             catch(...){
-                std::cout << "Read error" << std::endl;
+                cerr << "Error reading from shared memory port " << port << " name " << name << " (retry " << retry << ")" << endl;
             }
             retry++;
         }
@@ -501,7 +495,7 @@ private:
             }
 
         catch(...){
-            cout<<"skipping +"<<outpath<<port<<" /"<<name;
+            cerr << "Error writing to " << outpath << port << "/" << name << endl;
         }
     }
 
@@ -526,7 +520,7 @@ private:
             else throw 505;
         }
         catch(...){
-            cout<<"skipping +"<<outpath<<port<<" /"<<name;
+            cerr << "Error writing to " << outpath << port << "/" << name << endl;
         }
     }
 
@@ -556,7 +550,7 @@ private:
             }
 
         catch(...){
-            cout<<"skipping +"<<outpath<<port<<" /"<<name;
+            cerr << "Error writing to shared memory port " << port << " name " << name << endl;
         }
     }
 
@@ -577,7 +571,7 @@ private:
             else throw 505;
         }
         catch(...){
-            cout<<"skipping +"<<outpath<<port<<" /"<<name;
+            cerr << "Error writing to shared memory port " << port << " name " << name << endl;
         }
     }
     
