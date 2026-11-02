@@ -50,6 +50,37 @@ static void test_round_trip() {
     check("client simtime after reply", approx(client.simtime, 4));
 }
 
+// The two write_zmq cases from tests/protocol_fixtures/python_phase1_cases.json
+static void test_write_zmq_fixture_cases() {
+    zmq::context_t ctx(1);
+    zmq::socket_t peer(ctx, ZMQ_REP);
+    peer.set(zmq::sockopt::linger, 0);
+    peer.set(zmq::sockopt::rcvtimeo, 2000);
+    peer.bind("tcp://127.0.0.1:5593");
+    auto peer_recv = [&]() {
+        zmq::message_t m;
+        auto res = peer.recv(m, zmq::recv_flags::none);
+        return res ? m.to_string() : std::string("<timeout>");
+    };
+
+    Concore c;
+    c.init_zmq_port("p", "connect", "tcp://127.0.0.1:5593", "REQ");
+    c.simtime = 10;
+    c.write("p", "data", std::vector<double>{1.5, 2.5}, 2);
+    check("list payload gets simtime+delta in front", peer_recv() == "[12, 1.5, 2.5]");
+    check("list write leaves simtime alone", approx(c.simtime, 10));
+
+#ifndef TEST_DOCKER_HEADER  // concoredocker.hpp has no string write
+    peer.send(zmq::buffer(std::string("[0]")), zmq::send_flags::none);
+    c.read("p", "ack", "[0]");
+    c.simtime = 10;
+    c.delay = 0;
+    c.write("p", "status", std::string("ok"), 3);
+    check("string payload is sent as is", peer_recv() == "ok");
+    check("string write leaves simtime alone", approx(c.simtime, 10));
+#endif
+}
+
 // Same scenario as the Python test for issue #598: the reply to the first
 // request never comes, the REQ port must still be able to send again.
 static void test_req_recovers_after_missing_reply() {
@@ -89,6 +120,7 @@ static void test_req_recovers_after_missing_reply() {
 
 int main() {
     test_round_trip();
+    test_write_zmq_fixture_cases();
     test_req_recovers_after_missing_reply();
     std::cout << "\n" << passed << " passed, " << failed << " failed" << std::endl;
     return failed ? 1 : 0;
